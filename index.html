@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Draw 1 Mode</title>
+    <title>Klondike - Priority Move Edition</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
         --bg: #0c3b2e; --felt: #0f4a39; 
-        --accent: #b2e2f2; /* そらねこくんカラー */
+        --accent: #b2e2f2; /* そらねこくんイメージカラー */
         --ink: #f5f2ea;
       }
       * { box-sizing: border-box; }
@@ -34,7 +34,7 @@
     </style>
   </head>
   <body>
-    <header><h1>KLONDIKE - DRAW 1 MODE</h1><div class="controls"><button id="new-game">New Game</button></div></header>
+    <header><h1>KLONDIKE - PRIORITY MOVE</h1><div class="controls"><button id="new-game">New Game</button></div></header>
     <main class="board">
       <section class="top-row">
         <div id="stock" class="slot empty"></div><div id="waste" class="slot empty"></div>
@@ -61,7 +61,7 @@
 
       function initState() {
         console.clear();
-        console.log("%c[System] 新しいゲーム（1枚めくり）を開始します", "color: #b2e2f2; font-weight: bold;");
+        console.log("%c[System] 新しいゲームを開始します", "color: #b2e2f2; font-weight: bold;");
         const d = [];
         for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push(createCard(s, r));
         for (let i = d.length - 1; i > 0; i--) {
@@ -81,7 +81,6 @@
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
 
-      // --- 移動判定 ---
       function canPlaceOnFoundation(card, fIdx) {
         const found = state.foundations[fIdx];
         if (found.length === 0) return card.rank === 1 && card.suit === fIdx;
@@ -91,13 +90,13 @@
 
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
-        if (dest.length === 0) return card.rank === 13;
+        if (dest.length === 0) return true; // 空きスペース（何でもOK）
         const top = dest[dest.length - 1];
         if (!top || !top.isOpen) return false;
         return (card.rank === top.rank - 1) && (card.color !== top.color);
       }
 
-      // --- アクション ---
+      // --- アクション (優先順位を修正) ---
       function handleSlotClick(type, idx) {
         let sourceArray, card;
         
@@ -113,25 +112,25 @@
             card = sourceArray[firstOpenIdx];
         }
 
-        console.group(`[Click] ${getCid(card)} (ランク:${card.rank})`);
+        console.group(`[Click] ${getCid(card)} (Rank:${card.rank})`);
         
-        // 1. 組札へ
+        // --- 優先度1: まず「組札（Foundation）」への移動をチェック ---
         if (type === 'waste' || (type === 'tableau' && sourceArray.indexOf(card) === sourceArray.length - 1)) {
             const fIdx = card.suit;
             if (canPlaceOnFoundation(card, fIdx)) {
-                console.log(`-> Foundation-${fIdx} へ移動します`);
+                console.log(`%c[Priority 1] 組札への移動を優先実行`, "color: #b2e2f2; font-weight: bold;");
                 state.foundations[fIdx].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length - 1].isOpen = true;
                 console.groupEnd(); render(); return;
             }
         }
 
-        // 2. 場札へ
+        // --- 優先度2: 組札が無理なら「場札（Tableau）」の移動先を探す ---
         const run = (type === 'waste') ? [card] : sourceArray.slice(sourceArray.indexOf(card));
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
             if (canPlaceOnTableau(run[0], i)) {
-                console.log(`-> Tableau-${i} へ移動します`);
+                console.log(`[Priority 2] 場札へ移動実行`);
                 state.tableau[i] = state.tableau[i].concat(run);
                 if (type === 'waste') state.waste.pop();
                 else {
@@ -141,18 +140,15 @@
                 console.groupEnd(); render(); return;
             }
         }
-        console.log("-> 有効な移動先がありません");
+        
+        console.log("-> 移動可能な場所はありません");
         console.groupEnd();
       }
 
       function render() {
         if (!state) return;
-        document.querySelectorAll('.slot, .column').forEach(el => {
-            el.innerHTML = "";
-            el.onclick = null;
-        });
+        document.querySelectorAll('.slot, .column').forEach(el => { el.innerHTML = ""; el.onclick = null; });
 
-        // 山札（1枚めくり設定）
         const sEl = document.getElementById("stock");
         if (state.stock.length > 0) {
           sEl.innerHTML = `<playing-card cid="back"></playing-card><div class="stock-count">のこり ${state.stock.length}枚</div>`;
@@ -160,11 +156,8 @@
         sEl.onclick = (e) => {
           e.stopPropagation();
           if (state.stock.length === 0) {
-            console.log("[Stock] リサイクルします");
             state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
           } else {
-            // 3ではなく1に変更
-            console.log("[Stock] 1枚ドロー");
             const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           }
           render();
