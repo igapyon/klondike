@@ -39,7 +39,8 @@
         return {
           suit,
           rank,
-          color: suit % 2, // Follow GameLogic.md spec
+          // Spade/Club = black(0), Heart/Diamond = red(1)
+          color: suit === 0 || suit === 3 ? 0 : 1,
           isOpen: false,
         };
       }
@@ -186,11 +187,14 @@
           return recycleWasteToStock(state);
         }
         const drawCount = Math.min(count, state.stock.length);
+        const drawn = [];
         for (let i = 0; i < drawCount; i += 1) {
-          const card = state.stock.pop();
+          drawn.push(state.stock.pop());
+        }
+        drawn.forEach((card) => {
           card.isOpen = true;
           state.waste.push(card);
-        }
+        });
         return true;
       }
 
