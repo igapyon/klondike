@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Miku-ku Logic Edition</title>
+    <title>Klondike - Smart Move Edition</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
         --bg: #0c3b2e; --felt: #0f4a39; 
-        --accent: #b2e2f2;
+        --accent: #b2e2f2; /* そらねこくんカラー */
         --ink: #f5f2ea;
       }
       * { box-sizing: border-box; }
@@ -81,27 +81,23 @@
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
 
-      // --- 理由を表示するインテリジェント判定 ---
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
-        if (found.length === 0) {
-          if (card.rank === 1 && card.suit === fIdx) return { ok: true };
-          return { ok: false, msg: "山が空なのでエース(1)が必要です" };
-        }
+        if (found.length === 0) return (card.rank === 1 && card.suit === fIdx) ? { ok: true } : { ok: false, msg: "Aが必要です" };
         const top = found[found.length - 1];
         if (card.suit === top.suit && card.rank === top.rank + 1) return { ok: true };
-        return { ok: false, msg: `山には今、${top.rank} があります。次は ${top.rank + 1} が必要です` };
+        return { ok: false, msg: "続きの数字ではありません" };
       }
 
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
-        if (dest.length === 0) return true; // 空きスペースは何でもOK
+        if (dest.length === 0) return true; // 特別ルール：何でもOK
         const top = dest[dest.length - 1];
         if (!top || !top.isOpen) return false;
         return (card.rank === top.rank - 1) && (card.color !== top.color);
       }
 
-      // --- アクション ---
+      // --- アクション (優先順位を賢く変更) ---
       function handleSlotClick(type, idx) {
         let sourceArray, card;
         if (type === 'waste') {
@@ -120,39 +116,55 @@
         
         const isLastCard = (sourceArray.indexOf(card) === sourceArray.length - 1);
 
-        // 1. 組札（山）への移動チェック
+        // 1. 組札（山）への移動チェック（絶対最優先）
         if (type === 'waste' || isLastCard) {
             const fIdx = card.suit;
             const res = checkFoundationMove(card, fIdx);
             if (res.ok) {
-                console.log(`%c-> 組札（Foundation-${fIdx}）へ移動！`, "color: #b2e2f2; font-weight: bold;");
+                console.log(`%c-> [最優先] 組札へ移動！`, "color: #b2e2f2; font-weight: bold;");
                 state.foundations[fIdx].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length - 1].isOpen = true;
                 console.groupEnd(); render(); return;
-            } else if (isLastCard) {
-                console.log(`-> 山への移動不可: ${res.msg}`);
             }
-        } else {
-            console.log("-> このカードの上に他のカードが乗っているため、山（組札）へは移動できません");
         }
 
-        // 2. 場札への移動チェック
+        // 2. 場札への移動チェック（優先順位：既存列 > 空き地）
         const run = (type === 'waste') ? [card] : sourceArray.slice(sourceArray.indexOf(card));
+        let bestTarget = -1;
+
+        // 2-a. まずは「既存のカード」の上に乗れるか探す
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
-            if (canPlaceOnTableau(run[0], i)) {
-                console.log(`-> 場札（Tableau-${i}）へ移動実行`);
-                state.tableau[i] = state.tableau[i].concat(run);
-                if (type === 'waste') state.waste.pop();
-                else {
-                    state.tableau[idx] = sourceArray.slice(0, sourceArray.indexOf(card));
-                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
-                }
-                console.groupEnd(); render(); return;
+            if (state.tableau[i].length > 0 && canPlaceOnTableau(run[0], i)) {
+                bestTarget = i;
+                console.log(`%c-> [優先] 他のカード（Tableau-${i}）の上に重ねます`, "color: #f7c96b;");
+                break;
             }
         }
+
+        // 2-b. 既存の場所がなければ、空きスペースを探す
+        if (bestTarget === -1) {
+            for (let i = 0; i < 7; i++) {
+                if (type === 'tableau' && i === idx) continue;
+                if (state.tableau[i].length === 0 && canPlaceOnTableau(run[0], i)) {
+                    bestTarget = i;
+                    console.log(`-> 空きスペース（Tableau-${i}）へ移動します`);
+                    break;
+                }
+            }
+        }
+
+        if (bestTarget !== -1) {
+            state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
+            if (type === 'waste') state.waste.pop();
+            else {
+                state.tableau[idx] = sourceArray.slice(0, sourceArray.indexOf(card));
+                if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+            }
+            console.groupEnd(); render(); return;
+        }
         
-        console.log("-> 場札の列にも移動可能な場所がありません");
+        console.log("-> 有効な移動先が見つかりませんでした");
         console.groupEnd();
       }
 
