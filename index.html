@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Klondike - Priority Move Edition</title>
+    <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
+    <style>
+      :root {
+        --card-w: 100px; --card-h: 140px;
+        --bg: #0c3b2e; --felt: #0f4a39; 
+        --accent: #b2e2f2; /* そらねこくんイメージカラー */
+        --ink: #f5f2ea;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; font-family: sans-serif; color: var(--ink);
+        background: radial-gradient(1200px 600px at 20% 0%, #1a6b51 0%, var(--bg) 45%, #072a20 100%);
+        min-height: 100vh; overflow: hidden;
+      }
+      header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
+      h1 { margin: 0; font-size: 20px; color: var(--accent); letter-spacing: 0.1em; }
+      button { background: #f7c96b; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+      .board { padding: 0 24px 40px; display: grid; gap: 30px; max-width: 900px; margin: 0 auto; }
+      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 12px; }
+      .slot, .column {
+        position: relative; width: var(--card-w); min-height: var(--card-h);
+        border-radius: 8px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        cursor: pointer;
+      }
+      .slot.empty::after { content: ""; position: absolute; inset: 10px; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; }
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+      .stock-count { position: absolute; bottom: -24px; width: 100%; text-align: center; font-size: 12px; color: var(--accent); font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <header><h1>KLONDIKE - PRIORITY MOVE</h1><div class="controls"><button id="new-game">New Game</button></div></header>
+    <main class="board">
+      <section class="top-row">
+        <div id="stock" class="slot empty"></div><div id="waste" class="slot empty"></div>
+        <div class="spacer"></div>
+        <div id="foundation-0" class="slot empty"></div><div id="foundation-1" class="slot empty"></div>
+        <div id="foundation-2" class="slot empty"></div><div id="foundation-3" class="slot empty"></div>
+      </section>
+      <section class="bottom-row">
+        <div id="tableau-0" class="column empty"></div><div id="tableau-1" class="column empty"></div>
+        <div id="tableau-2" class="column empty"></div><div id="tableau-3" class="column empty"></div>
+        <div id="tableau-4" class="column empty"></div><div id="tableau-5" class="column empty"></div>
+        <div id="tableau-6" class="column empty"></div>
+      </section>
+    </main>
+
+    <script>
+      const SUITS = ["spades", "hearts", "diamonds", "clubs"];
+      const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
+      let state = null;
+
+      function createCard(s, r) {
+        return { suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false };
+      }
+
+      function initState() {
+        console.clear();
+        console.log("%c[System] 新しいゲームを開始します", "color: #b2e2f2; font-weight: bold;");
+        const d = [];
+        for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push(createCard(s, r));
+        for (let i = d.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]];
+        }
+        const t = Array.from({ length: 7 }, () => []);
+        for (let i = 0; i < 7; i++) {
+          for (let j = 0; j <= i; j++) {
+            const c = d.pop(); c.isOpen = (j === i); t[i].push(c);
+          }
+        }
+        return { stock: d, waste: [], foundations: [[],[],[],[]], tableau: t };
+      }
+
+      function getCid(card) {
+        if (!card || !card.isOpen) return "back"; 
+        return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
+      }
+
+      function canPlaceOnFoundation(card, fIdx) {
+        const found = state.foundations[fIdx];
+        if (found.length === 0) return card.rank === 1 && card.suit === fIdx;
+        const top = found[found.length - 1];
+        return card.suit === top.suit && card.rank === top.rank + 1;
+      }
+
+      function canPlaceOnTableau(card, tIdx) {
+        const dest = state.tableau[tIdx];
+        if (dest.length === 0) return true; // 空きスペース（何でもOK）
+        const top = dest[dest.length - 1];
+        if (!top || !top.isOpen) return false;
+        return (card.rank === top.rank - 1) && (card.color !== top.color);
+      }
+
+      // --- アクション (優先順位を修正) ---
+      function handleSlotClick(type, idx) {
+        let sourceArray, card;
+        
+        if (type === 'waste') {
+            if (state.waste.length === 0) return;
+            sourceArray = state.waste;
+            card = sourceArray[sourceArray.length - 1];
+        } else if (type === 'tableau') {
+            sourceArray = state.tableau[idx];
+            if (sourceArray.length === 0) return;
+            let firstOpenIdx = sourceArray.findIndex(c => c.isOpen);
+            if (firstOpenIdx === -1) return;
+            card = sourceArray[firstOpenIdx];
+        }
+
+        console.group(`[Click] ${getCid(card)} (Rank:${card.rank})`);
+        
+        // --- 優先度1: まず「組札（Foundation）」への移動をチェック ---
+        if (type === 'waste' || (type === 'tableau' && sourceArray.indexOf(card) === sourceArray.length - 1)) {
+            const fIdx = card.suit;
+            if (canPlaceOnFoundation(card, fIdx)) {
+                console.log(`%c[Priority 1] 組札への移動を優先実行`, "color: #b2e2f2; font-weight: bold;");
+                state.foundations[fIdx].push(sourceArray.pop());
+                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length - 1].isOpen = true;
+                console.groupEnd(); render(); return;
+            }
+        }
+
+        // --- 優先度2: 組札が無理なら「場札（Tableau）」の移動先を探す ---
+        const run = (type === 'waste') ? [card] : sourceArray.slice(sourceArray.indexOf(card));
+        for (let i = 0; i < 7; i++) {
+            if (type === 'tableau' && i === idx) continue;
+            if (canPlaceOnTableau(run[0], i)) {
+                console.log(`[Priority 2] 場札へ移動実行`);
+                state.tableau[i] = state.tableau[i].concat(run);
+                if (type === 'waste') state.waste.pop();
+                else {
+                    state.tableau[idx] = sourceArray.slice(0, sourceArray.indexOf(card));
+                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+                }
+                console.groupEnd(); render(); return;
+            }
+        }
+        
+        console.log("-> 移動可能な場所はありません");
+        console.groupEnd();
+      }
+
+      function render() {
+        if (!state) return;
+        document.querySelectorAll('.slot, .column').forEach(el => { el.innerHTML = ""; el.onclick = null; });
+
+        const sEl = document.getElementById("stock");
+        if (state.stock.length > 0) {
+          sEl.innerHTML = `<playing-card cid="back"></playing-card><div class="stock-count">のこり ${state.stock.length}枚</div>`;
+        }
+        sEl.onclick = (e) => {
+          e.stopPropagation();
+          if (state.stock.length === 0) {
+            state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
+          } else {
+            const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
+          }
+          render();
+        };
+
+        const wEl = document.getElementById("waste");
+        if (state.waste.length > 0) {
+          wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length - 1])}"></playing-card>`;
+        }
+        wEl.onclick = () => handleSlotClick('waste', -1);
+
+        state.foundations.forEach((stack, i) => {
+          const el = document.getElementById(`foundation-${i}`);
+          if (stack.length > 0) {
+            el.innerHTML = `<playing-card cid="${getCid(stack[stack.length - 1])}"></playing-card>`;
+          }
+        });
+
+        state.tableau.forEach((col, colIdx) => {
+          const colEl = document.getElementById(`tableau-${colIdx}`);
+          col.forEach((card, rowIdx) => {
+            const el = document.createElement("playing-card");
+            el.setAttribute("cid", getCid(card));
+            el.style.top = `${rowIdx * 28}px`;
+            colEl.appendChild(el);
+          });
+          colEl.onclick = () => handleSlotClick('tableau', colIdx);
+        });
+      }
+
+      window.addEventListener('load', () => {
+        customElements.whenDefined('playing-card').then(() => {
+          setTimeout(() => { state = initState(); render(); }, 300);
+        });
+      });
+      document.getElementById("new-game").onclick = () => { state = initState(); render(); };
+    </script>
+  </body>
+</html>
