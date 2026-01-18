@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Klondike</title>
+    <style>
+      body {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        margin: 16px;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      pre {
+        background: #f5f5f5;
+        padding: 12px;
+        border-radius: 6px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Klondike (Logic First)</h1>
+    <div class="controls">
+      <button id="new-game">New Game</button>
+      <button id="draw">Draw 3</button>
+    </div>
+    <pre id="state-view"></pre>
+
+    <script>
+      // Card model helpers
+      const SUITS = ["Spade", "Heart", "Diamond", "Club"];
+      const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+      function createCard(suit, rank) {
+        return {
+          suit,
+          rank,
+          color: suit % 2, // Follow GameLogic.md spec
+          isOpen: false,
+        };
+      }
+
+      function createDeck() {
+        const deck = [];
+        for (let suit = 0; suit < 4; suit += 1) {
+          for (let rank = 1; rank <= 13; rank += 1) {
+            deck.push(createCard(suit, rank));
+          }
+        }
+        return deck;
+      }
+
+      function shuffle(deck) {
+        for (let i = deck.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+        return deck;
+      }
+
+      function initState() {
+        const deck = shuffle(createDeck());
+        const tableau = Array.from({ length: 7 }, () => []);
+        const foundations = Array.from({ length: 4 }, () => []);
+        const waste = [];
+        const stock = [];
+
+        for (let i = 0; i < 7; i += 1) {
+          for (let j = 0; j <= i; j += 1) {
+            const card = deck.pop();
+            card.isOpen = j === i;
+            tableau[i].push(card);
+          }
+        }
+
+        while (deck.length) {
+          const card = deck.pop();
+          card.isOpen = false;
+          stock.push(card);
+        }
+
+        return { stock, waste, foundations, tableau };
+      }
+
+      function canPlaceOnTableau(card, destColumn) {
+        if (destColumn.length === 0) {
+          return card.rank === 13;
+        }
+        const top = destColumn[destColumn.length - 1];
+        return card.rank === top.rank - 1 && card.color !== top.color;
+      }
+
+      function canPlaceOnFoundation(card, foundation) {
+        if (foundation.length === 0) {
+          return card.rank === 1;
+        }
+        const top = foundation[foundation.length - 1];
+        return card.suit === top.suit && card.rank === top.rank + 1;
+      }
+
+      function getOpenRun(tableauColumn, startIndex) {
+        if (startIndex < 0 || startIndex >= tableauColumn.length) return null;
+        for (let i = startIndex; i < tableauColumn.length; i += 1) {
+          if (!tableauColumn[i].isOpen) return null;
+        }
+        return tableauColumn.slice(startIndex);
+      }
+
+      function autoFlipTableauColumn(column) {
+        const last = column[column.length - 1];
+        if (last && !last.isOpen) last.isOpen = true;
+      }
+
+      function moveTableauToTableau(state, fromIndex, startIndex, toIndex) {
+        const from = state.tableau[fromIndex];
+        const to = state.tableau[toIndex];
+        const run = getOpenRun(from, startIndex);
+        if (!run) return false;
+        if (!canPlaceOnTableau(run[0], to)) return false;
+        state.tableau[toIndex] = to.concat(run);
+        state.tableau[fromIndex] = from.slice(0, startIndex);
+        autoFlipTableauColumn(state.tableau[fromIndex]);
+        return true;
+      }
+
+      function moveWasteToTableau(state, toIndex) {
+        const card = state.waste[state.waste.length - 1];
+        if (!card) return false;
+        const to = state.tableau[toIndex];
+        if (!canPlaceOnTableau(card, to)) return false;
+        state.waste.pop();
+        state.tableau[toIndex].push(card);
+        return true;
+      }
+
+      function moveTableauToFoundation(state, fromIndex) {
+        const from = state.tableau[fromIndex];
+        const card = from[from.length - 1];
+        if (!card || !card.isOpen) return false;
+        const foundation = state.foundations[card.suit];
+        if (!canPlaceOnFoundation(card, foundation)) return false;
+        from.pop();
+        foundation.push(card);
+        autoFlipTableauColumn(from);
+        return true;
+      }
+
+      function moveWasteToFoundation(state) {
+        const card = state.waste[state.waste.length - 1];
+        if (!card) return false;
+        const foundation = state.foundations[card.suit];
+        if (!canPlaceOnFoundation(card, foundation)) return false;
+        state.waste.pop();
+        foundation.push(card);
+        return true;
+      }
+
+      function moveFoundationToTableau(state, suit, toIndex) {
+        const foundation = state.foundations[suit];
+        const card = foundation[foundation.length - 1];
+        if (!card) return false;
+        const to = state.tableau[toIndex];
+        if (!canPlaceOnTableau(card, to)) return false;
+        foundation.pop();
+        to.push(card);
+        return true;
+      }
+
+      function recycleWasteToStock(state) {
+        if (state.stock.length > 0 || state.waste.length === 0) return false;
+        const reversed = state.waste.slice().reverse();
+        reversed.forEach((card) => {
+          card.isOpen = false;
+        });
+        state.stock = reversed;
+        state.waste = [];
+        return true;
+      }
+
+      function drawFromStock(state, count = 3) {
+        if (state.stock.length === 0) {
+          return recycleWasteToStock(state);
+        }
+        const drawCount = Math.min(count, state.stock.length);
+        for (let i = 0; i < drawCount; i += 1) {
+          const card = state.stock.pop();
+          card.isOpen = true;
+          state.waste.push(card);
+        }
+        return true;
+      }
+
+      function isWin(state) {
+        return state.foundations.every((stack) => stack.length === 13);
+      }
+
+      function cardLabel(card) {
+        if (!card) return "--";
+        return `${RANKS[card.rank - 1]}-${SUITS[card.suit]}${card.isOpen ? "" : " (X)"}`;
+      }
+
+      function summarizeState(state) {
+        return {
+          stock: state.stock.length,
+          waste: state.waste.length ? cardLabel(state.waste[state.waste.length - 1]) : "--",
+          foundations: state.foundations.map((f) => cardLabel(f[f.length - 1])),
+          tableau: state.tableau.map((col) => ({
+            len: col.length,
+            top: cardLabel(col[col.length - 1]),
+          })),
+          win: isWin(state),
+        };
+      }
+
+      let state = initState();
+
+      function render() {
+        const view = document.getElementById("state-view");
+        view.textContent = JSON.stringify(summarizeState(state), null, 2);
+      }
+
+      document.getElementById("new-game").addEventListener("click", () => {
+        state = initState();
+        render();
+      });
+
+      document.getElementById("draw").addEventListener("click", () => {
+        drawFromStock(state, 3);
+        render();
+      });
+
+      render();
+
+      // Expose for console testing.
+      window.klondike = {
+        getState: () => state,
+        setState: (next) => {
+          state = next;
+          render();
+        },
+        drawFromStock: () => {
+          drawFromStock(state, 3);
+          render();
+        },
+        moveTableauToTableau: (fromIndex, startIndex, toIndex) => {
+          const ok = moveTableauToTableau(state, fromIndex, startIndex, toIndex);
+          render();
+          return ok;
+        },
+        moveWasteToTableau: (toIndex) => {
+          const ok = moveWasteToTableau(state, toIndex);
+          render();
+          return ok;
+        },
+        moveTableauToFoundation: (fromIndex) => {
+          const ok = moveTableauToFoundation(state, fromIndex);
+          render();
+          return ok;
+        },
+        moveWasteToFoundation: () => {
+          const ok = moveWasteToFoundation(state);
+          render();
+          return ok;
+        },
+        moveFoundationToTableau: (suit, toIndex) => {
+          const ok = moveFoundationToTableau(state, suit, toIndex);
+          render();
+          return ok;
+        },
+      };
+    </script>
+  </body>
+</html>
