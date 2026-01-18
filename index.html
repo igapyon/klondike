@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike Solitaire - Production Final</title>
+    <title>Klondike - Draw 1 Mode</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -26,15 +26,15 @@
       .slot, .column {
         position: relative; width: var(--card-w); min-height: var(--card-h);
         border-radius: 8px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-        cursor: pointer; /* 枠自体をボタンのように扱えるようにします */
+        cursor: pointer;
       }
       .slot.empty::after { content: ""; position: absolute; inset: 10px; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; }
-      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; /* カードをすり抜けて枠にクリックを届けます */ filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
       .stock-count { position: absolute; bottom: -24px; width: 100%; text-align: center; font-size: 12px; color: var(--accent); font-weight: bold; }
     </style>
   </head>
   <body>
-    <header><h1>KLONDIKE - SORANEKO VER.</h1><div class="controls"><button id="new-game">New Game</button></div></header>
+    <header><h1>KLONDIKE - DRAW 1 MODE</h1><div class="controls"><button id="new-game">New Game</button></div></header>
     <main class="board">
       <section class="top-row">
         <div id="stock" class="slot empty"></div><div id="waste" class="slot empty"></div>
@@ -61,7 +61,7 @@
 
       function initState() {
         console.clear();
-        console.log("%c[System] 新しいゲームを開始します", "color: #b2e2f2; font-weight: bold;");
+        console.log("%c[System] 新しいゲーム（1枚めくり）を開始します", "color: #b2e2f2; font-weight: bold;");
         const d = [];
         for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push(createCard(s, r));
         for (let i = d.length - 1; i > 0; i--) {
@@ -93,11 +93,11 @@
         const dest = state.tableau[tIdx];
         if (dest.length === 0) return card.rank === 13;
         const top = dest[dest.length - 1];
-        if (!top.isOpen) return false;
+        if (!top || !top.isOpen) return false;
         return (card.rank === top.rank - 1) && (card.color !== top.color);
       }
 
-      // --- アクション (枠のクリックを処理するように変更) ---
+      // --- アクション ---
       function handleSlotClick(type, idx) {
         let sourceArray, card;
         
@@ -108,7 +108,6 @@
         } else if (type === 'tableau') {
             sourceArray = state.tableau[idx];
             if (sourceArray.length === 0) return;
-            // 場札の場合は、一番下の「表を向いているカード」を起点にします
             let firstOpenIdx = sourceArray.findIndex(c => c.isOpen);
             if (firstOpenIdx === -1) return;
             card = sourceArray[firstOpenIdx];
@@ -116,23 +115,23 @@
 
         console.group(`[Click] ${getCid(card)} (ランク:${card.rank})`);
         
-        // 1. 組札へ (最後尾カードのみ)
+        // 1. 組札へ
         if (type === 'waste' || (type === 'tableau' && sourceArray.indexOf(card) === sourceArray.length - 1)) {
             const fIdx = card.suit;
             if (canPlaceOnFoundation(card, fIdx)) {
-                console.log(`-> Foundation-${fIdx} へ移動します！`);
+                console.log(`-> Foundation-${fIdx} へ移動します`);
                 state.foundations[fIdx].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length - 1].isOpen = true;
                 console.groupEnd(); render(); return;
             }
         }
 
-        // 2. 他の場札へ (列の移動)
+        // 2. 場札へ
         const run = (type === 'waste') ? [card] : sourceArray.slice(sourceArray.indexOf(card));
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
             if (canPlaceOnTableau(run[0], i)) {
-                console.log(`-> Tableau-${i} へ移動します！`);
+                console.log(`-> Tableau-${i} へ移動します`);
                 state.tableau[i] = state.tableau[i].concat(run);
                 if (type === 'waste') state.waste.pop();
                 else {
@@ -142,22 +141,18 @@
                 console.groupEnd(); render(); return;
             }
         }
-        
-        console.log("-> 有効な移動先がありませんでした。場札は「数字が1つ小さく、色が違うカード」の上にのみ置けます。");
+        console.log("-> 有効な移動先がありません");
         console.groupEnd();
       }
 
       function render() {
         if (!state) return;
-        console.log("[System] 描画を更新...");
-        
-        // 全てのイベントと中身をクリア
         document.querySelectorAll('.slot, .column').forEach(el => {
             el.innerHTML = "";
             el.onclick = null;
         });
 
-        // 山札
+        // 山札（1枚めくり設定）
         const sEl = document.getElementById("stock");
         if (state.stock.length > 0) {
           sEl.innerHTML = `<playing-card cid="back"></playing-card><div class="stock-count">のこり ${state.stock.length}枚</div>`;
@@ -165,36 +160,29 @@
         sEl.onclick = (e) => {
           e.stopPropagation();
           if (state.stock.length === 0) {
-            console.log("[Stock] リサイクル実行");
+            console.log("[Stock] リサイクルします");
             state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
           } else {
-            const num = Math.min(3, state.stock.length);
-            console.log(`[Stock] ${num}枚ドロー`);
-            for (let i = 0; i < num; i++) { const c = state.stock.pop(); c.isOpen = true; state.waste.push(c); }
+            // 3ではなく1に変更
+            console.log("[Stock] 1枚ドロー");
+            const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           }
           render();
         };
 
-        // 捨札
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) {
-          const el = document.createElement("playing-card");
-          el.setAttribute("cid", getCid(state.waste[state.waste.length - 1]));
-          wEl.appendChild(el);
+          wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length - 1])}"></playing-card>`;
         }
         wEl.onclick = () => handleSlotClick('waste', -1);
 
-        // 組札
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
           if (stack.length > 0) {
-            const cEl = document.createElement("playing-card");
-            cEl.setAttribute("cid", getCid(stack[stack.length - 1]));
-            el.appendChild(cEl);
+            el.innerHTML = `<playing-card cid="${getCid(stack[stack.length - 1])}"></playing-card>`;
           }
         });
 
-        // 場札
         state.tableau.forEach((col, colIdx) => {
           const colEl = document.getElementById(`tableau-${colIdx}`);
           col.forEach((card, rowIdx) => {
