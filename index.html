@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Smart Move Edition</title>
+    <title>Klondike - Auto Dissolve Edition</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
         --bg: #0c3b2e; --felt: #0f4a39; 
-        --accent: #b2e2f2; /* そらねこくんカラー */
+        --accent: #b2e2f2; /* そらねこくんイメージカラー */
         --ink: #f5f2ea;
       }
       * { box-sizing: border-box; }
@@ -19,8 +19,9 @@
         min-height: 100vh; overflow: hidden;
       }
       header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
-      h1 { margin: 0; font-size: 20px; color: var(--accent); letter-spacing: 0.1em; }
-      button { background: #f7c96b; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+      h1 { margin: 0; font-size: 20px; color: var(--accent); letter-spacing: 0.1em; text-shadow: 0 0 10px rgba(178,226,242,0.5); }
+      button { background: #f7c96b; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 0 #b38a3d; }
+      button:active { transform: translateY(2px); box-shadow: 0 2px 0 #b38a3d; }
       .board { padding: 0 24px 40px; display: grid; gap: 30px; max-width: 900px; margin: 0 auto; }
       .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 12px; }
       .slot, .column {
@@ -29,12 +30,25 @@
         cursor: pointer;
       }
       .slot.empty::after { content: ""; position: absolute; inset: 10px; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; }
-      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); transition: all 0.2s ease-in-out; }
       .stock-count { position: absolute; bottom: -24px; width: 100%; text-align: center; font-size: 12px; color: var(--accent); font-weight: bold; }
+      
+      /* 勝利お祝い演出用 */
+      #win-overlay {
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+        z-index: 100; flex-direction: column; align-items: center; justify-content: center;
+        color: var(--accent); animation: fadeIn 0.8s forwards;
+      }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .win-msg { font-size: 42px; font-weight: bold; margin-bottom: 20px; text-align: center; line-height: 1.2; text-shadow: 0 0 20px var(--accent); }
     </style>
   </head>
-  <body>
-    <header><h1>KLONDIKE - SORANEKO VER.</h1><div class="controls"><button id="new-game">New Game</button></div></header>
+  <body oncontextmenu="return false;">
+    <div id="win-overlay">
+        <div class="win-msg">✨ MELON CELEBRATION ✨<br>GAME CLEARED!</div>
+        <button onclick="location.reload()">もう一度あそぶ</button>
+    </div>
+    <header><h1>KLONDIKE - AUTO FINISH</h1><div class="controls"><button id="new-game">New Game</button></div></header>
     <main class="board">
       <section class="top-row">
         <div id="stock" class="slot empty"></div><div id="waste" class="slot empty"></div>
@@ -51,28 +65,24 @@
     </main>
 
     <script>
+      /* 重要：デバッグ用のRANKS/SUITS定義は変更しないでください */
       const SUITS = ["spades", "hearts", "diamonds", "clubs"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
       let state = null;
+      let isAutoFinishing = false; // オートクリア実行中フラグ
 
-      function createCard(s, r) {
-        return { suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false };
-      }
+      function createCard(s, r) { return { suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false }; }
 
       function initState() {
+        /* 重要：console.logによるゲーム開始ログは維持してください */
         console.clear();
-        console.log("%c[System] 新しいゲームを開始します", "color: #b2e2f2; font-weight: bold;");
+        console.log("%c[System] ゲーム開始。デバッグを開始します。", "color: #b2e2f2; font-weight: bold;");
+        isAutoFinishing = false;
         const d = [];
         for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push(createCard(s, r));
-        for (let i = d.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]];
-        }
+        for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
         const t = Array.from({ length: 7 }, () => []);
-        for (let i = 0; i < 7; i++) {
-          for (let j = 0; j <= i; j++) {
-            const c = d.pop(); c.isOpen = (j === i); t[i].push(c);
-          }
-        }
+        for (let i = 0; i < 7; i++) { for (let j = 0; j <= i; j++) { const c = d.pop(); c.isOpen = (j === i); t[i].push(c); } }
         return { stock: d, waste: [], foundations: [[],[],[],[]], tableau: t };
       }
 
@@ -81,122 +91,159 @@
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
 
+      /* 重要：移動判定ロジックのログは、デバッグのために削除禁止です */
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
-        if (found.length === 0) return (card.rank === 1 && card.suit === fIdx) ? { ok: true } : { ok: false, msg: "Aが必要です" };
+        if (found.length === 0) {
+          if (card.rank === 1 && card.suit === fIdx) return { ok: true };
+          return { ok: false, msg: "Aが必要です" };
+        }
         const top = found[found.length - 1];
         if (card.suit === top.suit && card.rank === top.rank + 1) return { ok: true };
-        return { ok: false, msg: "続きの数字ではありません" };
+        return { ok: false, msg: `現在は ${top.rank}。次は ${top.rank + 1} が必要です` };
       }
 
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
-        if (dest.length === 0) return true; // 特別ルール：何でもOK
+        if (dest.length === 0) return { ok: true, type: "空きスペース" };
         const top = dest[dest.length - 1];
-        if (!top || !top.isOpen) return false;
-        return (card.rank === top.rank - 1) && (card.color !== top.color);
+        const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
+        return match ? { ok: true, type: "連番" } : { ok: false };
       }
 
-      // --- アクション (優先順位を賢く変更) ---
-      function handleSlotClick(type, idx) {
-        let sourceArray, card;
+      /* 重要：handleSlotClick内のconsoleログ出力は、動作確認のため削除禁止です */
+      function handleSlotClick(type, idx, mode = "single") {
+        if (isAutoFinishing) return; // オート中は操作禁止
+        
+        let sourceArray, card, cardIdx;
         if (type === 'waste') {
             if (state.waste.length === 0) return;
-            sourceArray = state.waste;
-            card = sourceArray[sourceArray.length - 1];
-        } else if (type === 'tableau') {
-            sourceArray = state.tableau[idx];
-            if (sourceArray.length === 0) return;
-            let firstOpenIdx = sourceArray.findIndex(c => c.isOpen);
-            if (firstOpenIdx === -1) return;
-            card = sourceArray[firstOpenIdx];
+            sourceArray = state.waste; cardIdx = sourceArray.length - 1; card = sourceArray[cardIdx];
+        } else {
+            sourceArray = state.tableau[idx]; if (sourceArray.length === 0) return;
+            cardIdx = sourceArray.findIndex(c => c.isOpen); card = sourceArray[cardIdx];
         }
 
-        console.group(`[Click] ${getCid(card)} (ランク:${card.rank})`);
+        const actionName = (mode === "single") ? "左クリック" : "右/Wクリック";
+        console.group(`[Action] ${actionName}: ${getCid(card)} (Rank:${card.rank})`);
         
-        const isLastCard = (sourceArray.indexOf(card) === sourceArray.length - 1);
+        const isTableauLast = (type === 'tableau' && sourceArray.indexOf(card) === sourceArray.length - 1);
 
-        // 1. 組札（山）への移動チェック（絶対最優先）
-        if (type === 'waste' || isLastCard) {
-            const fIdx = card.suit;
-            const res = checkFoundationMove(card, fIdx);
-            if (res.ok) {
-                console.log(`%c-> [最優先] 組札へ移動！`, "color: #b2e2f2; font-weight: bold;");
-                state.foundations[fIdx].push(sourceArray.pop());
-                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length - 1].isOpen = true;
-                console.groupEnd(); render(); return;
+        // 1. 組札（山）への移動
+        if (type === 'waste' || isTableauLast) {
+            const resF = checkFoundationMove(card, card.suit);
+            if (resF.ok) {
+                console.log(`%c-> [Success] 山へ飛ばします`, "color: #b2e2f2; font-weight: bold;");
+                state.foundations[card.suit].push(sourceArray.pop());
+                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                console.groupEnd(); render(); checkVictoryCondition(); return;
+            } else if (mode !== "single") {
+                console.log(`-> [Skip] 山へは行けません: ${resF.msg}`);
             }
         }
 
-        // 2. 場札への移動チェック（優先順位：既存列 > 空き地）
-        const run = (type === 'waste') ? [card] : sourceArray.slice(sourceArray.indexOf(card));
-        let bestTarget = -1;
+        if (mode !== "single") { console.groupEnd(); return; }
 
-        // 2-a. まずは「既存のカード」の上に乗れるか探す
+        // 2. 場札への移動
+        const run = sourceArray.slice(cardIdx);
+        let bestTarget = -1;
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
-            if (state.tableau[i].length > 0 && canPlaceOnTableau(run[0], i)) {
-                bestTarget = i;
-                console.log(`%c-> [優先] 他のカード（Tableau-${i}）の上に重ねます`, "color: #f7c96b;");
-                break;
-            }
+            const resT = canPlaceOnTableau(run[0], i);
+            if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
         }
-
-        // 2-b. 既存の場所がなければ、空きスペースを探す
         if (bestTarget === -1) {
             for (let i = 0; i < 7; i++) {
                 if (type === 'tableau' && i === idx) continue;
-                if (state.tableau[i].length === 0 && canPlaceOnTableau(run[0], i)) {
-                    bestTarget = i;
-                    console.log(`-> 空きスペース（Tableau-${i}）へ移動します`);
-                    break;
-                }
+                const resT = canPlaceOnTableau(run[0], i);
+                if (resT.ok && resT.type === "空きスペース") { bestTarget = i; break; }
             }
         }
 
         if (bestTarget !== -1) {
+            console.log(`%c-> [Success] 場札列-${bestTarget} へ移動`, "color: #f7c96b;");
             state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
             if (type === 'waste') state.waste.pop();
             else {
-                state.tableau[idx] = sourceArray.slice(0, sourceArray.indexOf(card));
+                state.tableau[idx] = sourceArray.slice(0, cardIdx);
                 if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
             }
-            console.groupEnd(); render(); return;
+            console.groupEnd(); render(); checkVictoryCondition(); return;
         }
-        
-        console.log("-> 有効な移動先が見つかりませんでした");
+        console.log("-> [Fail] 移動先がありません");
         console.groupEnd();
+      }
+
+      function checkVictoryCondition() {
+        const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
+        if (total === 52) { document.getElementById("win-overlay").style.display = "flex"; return; }
+
+        // 「溶ける」条件：山札・捨札が空、かつ全ての場札が表向き
+        const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
+        const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
+
+        if (stockEmpty && allTableauOpen && !isAutoFinishing) {
+            console.log("%c[System] オートクリア開始！全カードを山へ送ります。", "color: #b2e2f2; font-weight: bold;");
+            isAutoFinishing = true;
+            setTimeout(autoDissolve, 100);
+        }
+      }
+
+      function autoDissolve() {
+        let moved = false;
+        // 各列の末尾を見て、山に置けるものから順に飛ばす
+        for (let i = 0; i < 7; i++) {
+            const col = state.tableau[i];
+            if (col.length > 0) {
+                const c = col[col.length - 1];
+                if (checkFoundationMove(c, c.suit).ok) {
+                    state.foundations[c.suit].push(col.pop());
+                    moved = true;
+                    break;
+                }
+            }
+        }
+        if (moved) {
+            render();
+            setTimeout(autoDissolve, 100); // 100ms間隔でシュババッ！と飛ばす
+        } else {
+            checkVictoryCondition();
+        }
       }
 
       function render() {
         if (!state) return;
-        document.querySelectorAll('.slot, .column').forEach(el => { el.innerHTML = ""; el.onclick = null; });
+        /* 重要：描画ログはタイミング確認のため削除禁止です */
+        console.log("[Render] 画面更新中...");
+        document.querySelectorAll('.slot, .column').forEach(el => {
+            el.innerHTML = "";
+            const newEl = el.cloneNode(true);
+            el.parentNode.replaceChild(newEl, el);
+        });
 
         const sEl = document.getElementById("stock");
         if (state.stock.length > 0) {
           sEl.innerHTML = `<playing-card cid="back"></playing-card><div class="stock-count">のこり ${state.stock.length}枚</div>`;
         }
-        sEl.onclick = (e) => {
-          e.stopPropagation();
+        sEl.onclick = () => {
+          if (isAutoFinishing) return;
           if (state.stock.length === 0) {
             state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
           } else {
             const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           }
-          render();
+          render(); checkVictoryCondition();
         };
 
         const wEl = document.getElementById("waste");
-        if (state.waste.length > 0) {
-          wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length - 1])}"></playing-card>`;
-        }
-        wEl.onclick = () => handleSlotClick('waste', -1);
+        if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length-1])}"></playing-card>`;
+        wEl.onclick = () => handleSlotClick('waste', -1, "single");
+        wEl.ondblclick = () => handleSlotClick('waste', -1, "double");
+        wEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('waste', -1, "right"); };
 
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
-          if (stack.length > 0) {
-            el.innerHTML = `<playing-card cid="${getCid(stack[stack.length - 1])}"></playing-card>`;
-          }
+          if (stack.length > 0) el.innerHTML = `<playing-card cid="${getCid(stack[stack.length-1])}"></playing-card>`;
         });
 
         state.tableau.forEach((col, colIdx) => {
@@ -207,7 +254,9 @@
             el.style.top = `${rowIdx * 28}px`;
             colEl.appendChild(el);
           });
-          colEl.onclick = () => handleSlotClick('tableau', colIdx);
+          colEl.onclick = () => handleSlotClick('tableau', colIdx, "single");
+          colEl.ondblclick = () => handleSlotClick('tableau', colIdx, "double");
+          colEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('tableau', colIdx, "right"); };
         });
       }
 
