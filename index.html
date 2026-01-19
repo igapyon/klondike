@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Ultimate Edition</title>
+    <title>Klondike - Replay Edition</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -55,10 +55,11 @@
         <button onclick="location.reload()">Deal Again</button>
     </div>
     <header>
-      <h1>Solitaire (Ultimate)</h1>
+      <h1>Solitaire (Replay)</h1>
       <div class="controls">
         <span id="status-msg">Generating Solvable Deal...</span>
         <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
+        <button id="btn-restart" disabled>Restart</button>
         <button id="new-game">New Game (F2)</button>
       </div>
     </header>
@@ -81,7 +82,9 @@
       /* --- [Core] Configuration & Constants --- */
       const SUITS = ["spades", "hearts", "diamonds", "clubs"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
+      
       let state = null;
+      let initialState = null; // リプレイ用：初期配置を保存
       let historyStack = [];
       let isAutoFinishing = false; 
 
@@ -91,7 +94,6 @@
         clone(s) { return JSON.parse(JSON.stringify(s)); }
         findSolvableDeck() {
             let attempts = 0;
-            // Try up to 500 random deals to find a winnable one
             while (attempts < 500) {
                 const deck = this.createDeck();
                 const startState = this.deal(deck);
@@ -120,7 +122,6 @@
              }
              return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
         }
-        // Simple greedy solver to check winnability
         canSolve(simState) {
             let moves = 0;
             let noProgressLoop = 0;
@@ -156,7 +157,7 @@
                     let openIdx = -1;
                     for(let k=0; k<col.length; k++) { if(col[k].isOpen) { openIdx=k; break; } }
                     if (openIdx === -1) continue; 
-                    if (openIdx === 0 && col[openIdx].rank === 13) continue; // Don't move King from empty
+                    if (openIdx === 0 && col[openIdx].rank === 13) continue;
                     const cardToMove = col[openIdx];
                     const target = this.findTabTarget(simState, cardToMove, i);
                     if (target !== -1) {
@@ -216,13 +217,8 @@
       const bot = new Simulator();
 
       /* --- [Feature 2] Safe Auto-Move Logic --- */
-      // 勝手にカードを持っていかないための安全装置
       function isSafeToAutoMove(card) {
-        // Aはいつでも上げてOK
         if (card.rank === 1) return true; 
-        
-        // それ以外は、反対色のランクが十分に育っているか確認する
-        // 例: ハートの3を上げるには、スペードとクラブの2が既に組札にないといけない
         const targetRank = card.rank - 1;
         const otherColor = 1 - card.color;
         let count = 0;
@@ -233,7 +229,6 @@
                 if (top && top.rank >= targetRank) count++;
             }
         });
-        // 反対色の土台が2つとも準備完了なら、このカードはもう場に不要なので上げてOK
         return count === 2; 
       }
 
@@ -242,6 +237,8 @@
         if (!card || !card.isOpen) return "back"; 
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
+      
+      // 履歴保存 (Deep Copy)
       function pushHistory() {
         if (state) {
             if (historyStack.length > 50) historyStack.shift(); 
@@ -249,18 +246,25 @@
             updateUndoButton();
         }
       }
+      
       function popHistory() {
         if (historyStack.length === 0) return;
         state = JSON.parse(historyStack.pop());
         render(); updateUndoButton();
       }
-      function updateUndoButton() { document.getElementById("btn-undo").disabled = (historyStack.length === 0); }
+      
+      function updateUndoButton() { 
+        document.getElementById("btn-undo").disabled = (historyStack.length === 0);
+        document.getElementById("btn-restart").disabled = (initialState === null);
+      }
+      
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
         if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
         const top = found[found.length - 1];
         return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
       }
+      
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
         if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
@@ -269,15 +273,39 @@
         return match ? { ok: true, type: "連番" } : { ok: false };
       }
 
+      // ゲーム開始処理
       async function startNewGame() {
         const status = document.getElementById("status-msg");
-        const btn = document.getElementById("new-game");
-        status.style.display = "block"; btn.disabled = true;
-        await new Promise(r => setTimeout(r, 50));
-        state = bot.findSolvableDeck();
-        historyStack = []; isAutoFinishing = false;
-        status.style.display = "none"; btn.disabled = false;
-        render(); updateUndoButton();
+        const btnNew = document.getElementById("new-game");
+        const btnRestart = document.getElementById("btn-restart");
+        
+        status.style.display = "block"; 
+        btnNew.disabled = true;
+        btnRestart.disabled = true;
+        
+        await new Promise(r => setTimeout(r, 50)); // 描画更新待ち
+        
+        const newState = bot.findSolvableDeck();
+        state = newState;
+        initialState = JSON.parse(JSON.stringify(newState)); // 初期状態をディープコピーして保存
+        
+        historyStack = []; 
+        isAutoFinishing = false;
+        
+        status.style.display = "none"; 
+        btnNew.disabled = false;
+        render(); 
+        updateUndoButton();
+      }
+
+      // リスタート処理
+      function restartGame() {
+        if (!initialState) return;
+        state = JSON.parse(JSON.stringify(initialState)); // 初期状態を復元
+        historyStack = [];
+        isAutoFinishing = false;
+        render();
+        updateUndoButton();
       }
 
       function triggerAutoFoundation(immediate = false) {
@@ -288,7 +316,6 @@
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
-              // ★ここに安全装置を復活させました★
               if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
                 state.foundations[card.suit].push(col.pop());
                 if (col.length > 0) col[col.length - 1].isOpen = true;
@@ -298,7 +325,6 @@
           }
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
-            // ★ここにも安全装置★
             if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
@@ -326,7 +352,7 @@
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
 
-        // Double Click: Force Move to Foundation (Ignore safety check)
+        // Double Click: Force Foundation
         if (mode !== "single" && isSingleCard) {
             if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
@@ -362,7 +388,7 @@
             render(); triggerAutoFoundation(); return;
         }
 
-        // Single Click: Foundation (Only if clicked, safety check ignored for manual click)
+        // Single Click: Foundation (Last resort)
         if (isSingleCard) {
              if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
@@ -446,6 +472,7 @@
         if (e.key === 'F2') { e.preventDefault(); startNewGame(); }
       });
       document.getElementById("btn-undo").onclick = popHistory;
+      document.getElementById("btn-restart").onclick = restartGame;
       document.getElementById("new-game").onclick = startNewGame;
 
       window.addEventListener('load', () => {
