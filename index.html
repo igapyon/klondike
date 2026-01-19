@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Final Fix</title>
+    <title>Klondike - Stable Click</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -38,11 +38,13 @@
         position: relative; width: var(--card-w); min-height: var(--card-h);
         border-radius: 4px; 
         border: 2px solid rgba(255,255,255,0.2);
-        cursor: pointer;
+        cursor: pointer; /* 列全体をクリック可能に */
+        transition: height 0.2s;
       }
       .slot:empty, .column:empty { border: 2px solid rgba(0,0,0,0.1); background: rgba(0,0,0,0.05); }
 
-      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.6)); transition: top 0.1s; }
+      /* カードはクリックイベントを親に委譲するため、ポインターイベントは有効のままにする */
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); cursor: pointer; filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.6)); transition: top 0.1s; pointer-events: auto; }
       .stock-count { display:none; }
       
       #win-overlay {
@@ -74,7 +76,7 @@
       <h1>Solitaire</h1>
       <div class="controls">
         <span id="status-msg"></span>
-        <label class="toggle-label" title="一手指すごとに自動で詰み判定を行います">
+        <label class="toggle-label" title="自動判定＋デバッグログ出力">
             <input type="checkbox" id="chk-autocheck"> 常時チェック
         </label>
         <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
@@ -125,14 +127,12 @@
             }
             return this.deal(this.createDeck());
         }
-
         checkCurrentState(currentState) {
             for(let i=0; i<5; i++) {
                 if (this.canSolve(this.clone(currentState))) return true;
             }
             return false;
         }
-
         createDeck() {
             const d = [];
             for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false });
@@ -149,7 +149,6 @@
              }
              return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
         }
-
         canSolve(simState) {
             let moves = 0;
             let noProgressLoop = 0;
@@ -239,7 +238,7 @@
       }
       const bot = new Simulator();
 
-      /* --- [Feature: Safe Auto] --- */
+      /* --- [Helper Functions] --- */
       function isSafeToAutoMove(card) {
         if (card.rank === 1) return true; 
         const targetRank = card.rank - 1;
@@ -254,13 +253,10 @@
         });
         return count === 2; 
       }
-
-      /* --- [Game Logic] --- */
       function getCid(card) {
         if (!card || !card.isOpen) return "back"; 
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
-      
       function pushHistory() {
         if (state) {
             if (historyStack.length > 50) historyStack.shift(); 
@@ -268,18 +264,15 @@
             updateButtons();
         }
       }
-      
       function popHistory() {
         if (historyStack.length === 0) return;
         state = JSON.parse(historyStack.pop());
         render(); updateButtons(); performAutoCheck();
       }
-      
       function updateButtons() { 
         document.getElementById("btn-undo").disabled = (historyStack.length === 0);
         document.getElementById("btn-restart").disabled = (initialState === null);
       }
-
       function showStatus(msg, color="#ffff00") {
         const el = document.getElementById("status-msg");
         el.textContent = msg; el.style.color = color;
@@ -305,14 +298,24 @@
       async function performAutoCheck() {
         const isCheckEnabled = document.getElementById("chk-autocheck").checked;
         if (!isCheckEnabled || isAutoFinishing || !state) { clearStatus(); return; }
-        showStatus("Checking...", "#ccc");
+        showStatus("Chk...", "#ccc");
         await new Promise(r => setTimeout(r, 20));
         const isWinnable = bot.checkCurrentState(state);
+        
+        // --- Console Debug Log (Requested) ---
+        console.clear();
+        console.group("%c[DEBUG] Current State Check", "color: orange; font-weight: bold;");
+        console.log("Winnable:", isWinnable ? "YES" : "NO");
+        console.log("Stock:", JSON.parse(JSON.stringify(state.stock)));
+        console.log("Waste:", JSON.parse(JSON.stringify(state.waste)));
+        console.log("Tableau:", JSON.parse(JSON.stringify(state.tableau)));
+        console.log("Foundations:", JSON.parse(JSON.stringify(state.foundations)));
+        console.groupEnd();
+
         if (isWinnable) { showStatus("OK", "#00ff00"); hideWarning(); }
         else { showStatus("STUCK?", "#ff5555"); showWarning(); }
       }
 
-      /* --- Actions --- */
       async function startNewGame() {
         showStatus("Gen...");
         const btnNew = document.getElementById("new-game");
@@ -362,31 +365,55 @@
               moved = true;
             }
           }
-          if (moved) { render(); setTimeout(triggerAutoFoundation, 100, true); }
-          else { checkVictoryCondition(); performAutoCheck(); }
+          if (moved) { 
+              render(); 
+              setTimeout(triggerAutoFoundation, 100, true); 
+          } else {
+              checkVictoryCondition();
+              performAutoCheck();
+          }
         };
         if (immediate) scanAndMove();
         else setTimeout(scanAndMove, 800);
       }
 
-      function handleSlotClick(type, idx, mode = "single") {
+      // --- [Simplified Click Handler] ---
+      // specificCardIdx: if provided (from data-idx), attempts to act on that specific card
+      function handleSlotClick(type, idx, mode = "single", specificCardIdx = -1) {
         if (isAutoFinishing) return;
+        
+        // Debug Log
+        if(document.getElementById("chk-autocheck").checked) {
+             console.log(`Click: Type=${type}, Col=${idx}, Mode=${mode}, CardIdx=${specificCardIdx}`);
+        }
+        
         clearStatus();
-        let sourceArray, card, cardIdx;
+        let sourceArray, cardIdx;
         
         if (type === 'waste') {
             if (state.waste.length === 0) return;
-            sourceArray = state.waste; cardIdx = sourceArray.length - 1; card = sourceArray[cardIdx];
+            sourceArray = state.waste; 
+            cardIdx = sourceArray.length - 1; // Waste is always top card
         } else {
-            sourceArray = state.tableau[idx]; if (sourceArray.length === 0) return;
-            cardIdx = sourceArray.findIndex(c => c.isOpen); card = sourceArray[cardIdx];
+            sourceArray = state.tableau[idx]; 
+            if (sourceArray.length === 0 && specificCardIdx === -1) return; // Clicking empty
+            
+            if (specificCardIdx !== -1) {
+                cardIdx = specificCardIdx;
+            } else {
+                // Fallback: click column background -> grab top card
+                cardIdx = sourceArray.length - 1;
+            }
+            
+            if (!sourceArray[cardIdx].isOpen) return; // Cannot grab closed card
         }
-        
+
+        const card = sourceArray[cardIdx];
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
         let moveSuccess = false;
 
-        // Double Click
+        // 1. Double Click -> Foundation
         if (mode !== "single" && isSingleCard) {
             if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
@@ -396,7 +423,7 @@
             }
         }
         
-        // Single Click: Tableau Priority
+        // 2. Single Click -> Try Tableau Move (Stack)
         if (!moveSuccess) {
             let bestTarget = -1;
             for (let i = 0; i < 7; i++) {
@@ -423,13 +450,12 @@
             }
         }
 
-        // Single Click: Foundation (Check TIP card if stack move failed)
-        // ここが修正ポイント：スタック移動が失敗しても、一番上のカードが組札に行けるなら飛ばす
-        if (!moveSuccess) {
-             const tipCard = sourceArray[sourceArray.length - 1]; // スタックの一番上のカード
-             if (checkFoundationMove(tipCard, tipCard.suit).ok) {
+        // 3. Single Click -> Try Foundation (Last Resort)
+        // If stack move failed, AND it's a single card (bottom of stack), try moving UP
+        if (!moveSuccess && isSingleCard) {
+             if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
-                state.foundations[tipCard.suit].push(sourceArray.pop());
+                state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
                 moveSuccess = true;
             }
@@ -471,6 +497,7 @@
             const newEl = el.cloneNode(true);
             el.parentNode.replaceChild(newEl, el);
         });
+        
         const sEl = document.getElementById("stock");
         if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back"></playing-card>`; }
         sEl.onclick = () => {
@@ -484,26 +511,52 @@
           }
           render(); triggerAutoFoundation(); performAutoCheck();
         };
+
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length-1])}"></playing-card>`;
         wEl.onclick = () => handleSlotClick('waste', -1, "single");
         wEl.ondblclick = () => handleSlotClick('waste', -1, "double");
         wEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('waste', -1, "right"); };
+
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
           if (stack.length > 0) el.innerHTML = `<playing-card cid="${getCid(stack[stack.length-1])}"></playing-card>`;
         });
+
         state.tableau.forEach((col, colIdx) => {
           const colEl = document.getElementById(`tableau-${colIdx}`);
+          const stackHeight = 140 + (col.length > 0 ? (col.length - 1) * 20 : 0);
+          colEl.style.height = `${stackHeight}px`;
+
+          // --- Click delegation: use data-idx ---
           col.forEach((card, rowIdx) => {
             const el = document.createElement("playing-card");
             el.setAttribute("cid", getCid(card));
             el.style.top = `${rowIdx * 20}px`; 
+            el.dataset.idx = rowIdx; // Store index for delegation
             colEl.appendChild(el);
           });
-          colEl.onclick = () => handleSlotClick('tableau', colIdx, "single");
-          colEl.ondblclick = () => handleSlotClick('tableau', colIdx, "double");
-          colEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('tableau', colIdx, "right"); };
+          
+          // Column click handler (Delegation)
+          colEl.onclick = (e) => {
+              // Check if a card was clicked
+              const cardEl = e.target.closest('playing-card');
+              if (cardEl) {
+                  const idx = parseInt(cardEl.dataset.idx);
+                  handleSlotClick('tableau', colIdx, "single", idx);
+              } else {
+                  // Clicked empty space in column -> implies top card
+                  handleSlotClick('tableau', colIdx, "single", -1);
+              }
+          };
+          
+          colEl.ondblclick = (e) => {
+              const cardEl = e.target.closest('playing-card');
+              if (cardEl) {
+                  const idx = parseInt(cardEl.dataset.idx);
+                  handleSlotClick('tableau', colIdx, "double", idx);
+              }
+          };
         });
       }
       
