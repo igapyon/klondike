@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Ultimate</title>
+    <title>Klondike - Final Fix</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -20,13 +20,17 @@
       }
       header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
       h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; }
-      .controls { display: flex; gap: 8px; align-items: center; }
+      .controls { display: flex; gap: 12px; align-items: center; }
+      
+      .toggle-label { display: flex; align-items: center; cursor: pointer; color: white; font-size: 12px; gap: 5px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
+      .toggle-label input { cursor: pointer; }
+
       button { background: #ece9d8; color: black; border: 1px solid #003c74; padding: 6px 12px; border-radius: 3px; font-size: 12px; cursor: pointer; white-space: nowrap; }
       button:hover { box-shadow: 0 0 0 1px #f5f2ea inset; }
       button:active { transform: translateY(1px); }
       button:disabled { opacity: 0.5; cursor: not-allowed; }
       
-      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; }
+      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 100px; text-align: right; }
       
       .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; }
       .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; }
@@ -48,6 +52,14 @@
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .win-msg { font-size: 40px; margin-bottom: 20px; font-family: "Times New Roman", serif; }
+      
+      #stuck-warning {
+        position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+        background: rgba(255, 0, 0, 0.85); color: white; padding: 10px 20px;
+        border-radius: 20px; font-weight: bold; pointer-events: none;
+        opacity: 0; transition: opacity 0.3s; z-index: 50;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      }
     </style>
   </head>
   <body oncontextmenu="return false;">
@@ -55,11 +67,16 @@
         <div class="win-msg">Congratulations</div>
         <button onclick="location.reload()">Deal Again</button>
     </div>
+    
+    <div id="stuck-warning">⚠️ 手詰まりの可能性あり (Undo推奨)</div>
+
     <header>
       <h1>Solitaire</h1>
       <div class="controls">
         <span id="status-msg"></span>
-        <button id="btn-check" disabled>詰みチェック</button>
+        <label class="toggle-label" title="一手指すごとに自動で詰み判定を行います">
+            <input type="checkbox" id="chk-autocheck"> 常時チェック
+        </label>
         <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
         <button id="btn-restart" disabled>Restart</button>
         <button id="new-game">New Game (F2)</button>
@@ -90,32 +107,27 @@
       let historyStack = [];
       let isAutoFinishing = false; 
 
-      /* --- [Simulator] For Generating & Checking --- */
+      /* --- [Simulator] --- */
       class Simulator {
         constructor() {}
         clone(s) { return JSON.parse(JSON.stringify(s)); }
         
-        // Find a guaranteed winnable initial deal
         findSolvableDeck() {
             let attempts = 0;
             while (attempts < 500) {
                 const deck = this.createDeck();
                 const startState = this.deal(deck);
-                // Initial check: Try once. If solvable, good.
                 if (this.canSolve(this.clone(startState))) {
                     console.log(`[System] Solvable deck found after ${attempts + 1} attempts.`);
                     return startState;
                 }
                 attempts++;
             }
-            console.warn("[System] Timeout. Returning random deck.");
             return this.deal(this.createDeck());
         }
 
-        // Check if the *current* state is winnable (run multiple attempts because solver is greedy/random)
         checkCurrentState(currentState) {
-            // Try 10 times to be sure
-            for(let i=0; i<10; i++) {
+            for(let i=0; i<5; i++) {
                 if (this.canSolve(this.clone(currentState))) return true;
             }
             return false;
@@ -138,14 +150,12 @@
              return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
         }
 
-        // The "Bot" logic
         canSolve(simState) {
             let moves = 0;
             let noProgressLoop = 0;
-            const LIMIT = 1500; 
+            const LIMIT = 1000;
             while (moves < LIMIT && noProgressLoop < 50) {
                 let moved = false;
-                // 1. Tableau -> Foundation
                 for (let i = 0; i < 7; i++) {
                     const col = simState.tableau[i];
                     if (col.length > 0) {
@@ -158,7 +168,6 @@
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-                // 2. Waste -> Foundation
                 if (simState.waste.length > 0) {
                     const c = simState.waste[simState.waste.length - 1];
                     if (this.checkF(simState, c, c.suit)) {
@@ -167,7 +176,6 @@
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-                // 3. Tableau -> Tableau
                 for (let i = 0; i < 7; i++) {
                     const col = simState.tableau[i];
                     if (col.length === 0) continue;
@@ -185,7 +193,6 @@
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-                // 4. Waste -> Tableau
                 if (simState.waste.length > 0) {
                     const c = simState.waste[simState.waste.length - 1];
                     const target = this.findTabTarget(simState, c, -1);
@@ -195,7 +202,6 @@
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-                // 5. Draw
                 if (simState.stock.length > 0) {
                     const c = simState.stock.pop(); c.isOpen = true;
                     simState.waste.push(c); moved = true;
@@ -266,25 +272,21 @@
       function popHistory() {
         if (historyStack.length === 0) return;
         state = JSON.parse(historyStack.pop());
-        render(); updateButtons(); clearStatus();
+        render(); updateButtons(); performAutoCheck();
       }
       
       function updateButtons() { 
         document.getElementById("btn-undo").disabled = (historyStack.length === 0);
         document.getElementById("btn-restart").disabled = (initialState === null);
-        document.getElementById("btn-check").disabled = (state === null);
       }
 
       function showStatus(msg, color="#ffff00") {
         const el = document.getElementById("status-msg");
-        el.textContent = msg;
-        el.style.color = color;
-        el.style.display = "inline";
+        el.textContent = msg; el.style.color = color;
       }
-
-      function clearStatus() {
-        document.getElementById("status-msg").textContent = "";
-      }
+      function clearStatus() { document.getElementById("status-msg").textContent = ""; hideWarning(); }
+      function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
+      function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
       
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
@@ -292,7 +294,6 @@
         const top = found[found.length - 1];
         return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
       }
-      
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
         if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
@@ -301,25 +302,30 @@
         return match ? { ok: true, type: "連番" } : { ok: false };
       }
 
-      // --- Main Actions ---
+      async function performAutoCheck() {
+        const isCheckEnabled = document.getElementById("chk-autocheck").checked;
+        if (!isCheckEnabled || isAutoFinishing || !state) { clearStatus(); return; }
+        showStatus("Checking...", "#ccc");
+        await new Promise(r => setTimeout(r, 20));
+        const isWinnable = bot.checkCurrentState(state);
+        if (isWinnable) { showStatus("OK", "#00ff00"); hideWarning(); }
+        else { showStatus("STUCK?", "#ff5555"); showWarning(); }
+      }
 
+      /* --- Actions --- */
       async function startNewGame() {
-        showStatus("Generating...");
+        showStatus("Gen...");
         const btnNew = document.getElementById("new-game");
         btnNew.disabled = true;
-        
         await new Promise(r => setTimeout(r, 50)); 
-        
         const newState = bot.findSolvableDeck();
         state = newState;
         initialState = JSON.parse(JSON.stringify(newState));
         historyStack = []; 
         isAutoFinishing = false;
-        
         clearStatus();
         btnNew.disabled = false;
-        render(); 
-        updateButtons();
+        render(); updateButtons();
       }
 
       function restartGame() {
@@ -332,24 +338,6 @@
             render();
             updateButtons();
         }
-      }
-
-      async function checkStuck() {
-        if(!state) return;
-        showStatus("判定中...", "#fff");
-        const btn = document.getElementById("btn-check");
-        btn.disabled = true;
-
-        await new Promise(r => setTimeout(r, 50));
-
-        const isWinnable = bot.checkCurrentState(state);
-        
-        if (isWinnable) {
-            showStatus("まだ解けます！", "#00ff00");
-        } else {
-            showStatus("手詰まりかも...", "#ff9999");
-        }
-        btn.disabled = false;
       }
 
       function triggerAutoFoundation(immediate = false) {
@@ -375,7 +363,7 @@
             }
           }
           if (moved) { render(); setTimeout(triggerAutoFoundation, 100, true); }
-          else checkVictoryCondition();
+          else { checkVictoryCondition(); performAutoCheck(); }
         };
         if (immediate) scanAndMove();
         else setTimeout(scanAndMove, 800);
@@ -383,7 +371,7 @@
 
       function handleSlotClick(type, idx, mode = "single") {
         if (isAutoFinishing) return;
-        clearStatus(); // Clear any previous check messages on move
+        clearStatus();
         let sourceArray, card, cardIdx;
         
         if (type === 'waste') {
@@ -396,6 +384,7 @@
         
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
+        let moveSuccess = false;
 
         // Double Click
         if (mode !== "single" && isSingleCard) {
@@ -403,45 +392,50 @@
                 pushHistory();
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                render(); triggerAutoFoundation(); return;
+                moveSuccess = true;
             }
         }
-
+        
         // Single Click: Tableau Priority
-        let bestTarget = -1;
-        for (let i = 0; i < 7; i++) {
-            if (type === 'tableau' && i === idx) continue;
-            const resT = canPlaceOnTableau(run[0], i);
-            if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
-        }
-        if (bestTarget === -1) {
+        if (!moveSuccess) {
+            let bestTarget = -1;
             for (let i = 0; i < 7; i++) {
                 if (type === 'tableau' && i === idx) continue;
                 const resT = canPlaceOnTableau(run[0], i);
-                if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
+                if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
             }
-        }
-
-        if (bestTarget !== -1) {
-            pushHistory();
-            state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
-            if (type === 'waste') state.waste.pop();
-            else {
-                state.tableau[idx] = sourceArray.slice(0, cardIdx);
-                if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+            if (bestTarget === -1) {
+                for (let i = 0; i < 7; i++) {
+                    if (type === 'tableau' && i === idx) continue;
+                    const resT = canPlaceOnTableau(run[0], i);
+                    if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
+                }
             }
-            render(); triggerAutoFoundation(); return;
-        }
-
-        // Single Click: Foundation (Last resort)
-        if (isSingleCard) {
-             if (checkFoundationMove(card, card.suit).ok) {
+            if (bestTarget !== -1) {
                 pushHistory();
-                state.foundations[card.suit].push(sourceArray.pop());
-                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                render(); triggerAutoFoundation(); return;
+                state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
+                if (type === 'waste') state.waste.pop();
+                else {
+                    state.tableau[idx] = sourceArray.slice(0, cardIdx);
+                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+                }
+                moveSuccess = true;
             }
         }
+
+        // Single Click: Foundation (Check TIP card if stack move failed)
+        // ここが修正ポイント：スタック移動が失敗しても、一番上のカードが組札に行けるなら飛ばす
+        if (!moveSuccess) {
+             const tipCard = sourceArray[sourceArray.length - 1]; // スタックの一番上のカード
+             if (checkFoundationMove(tipCard, tipCard.suit).ok) {
+                pushHistory();
+                state.foundations[tipCard.suit].push(sourceArray.pop());
+                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                moveSuccess = true;
+            }
+        }
+
+        if (moveSuccess) { render(); triggerAutoFoundation(); }
       }
 
       function checkVictoryCondition() {
@@ -488,7 +482,7 @@
           } else {
             const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           }
-          render(); triggerAutoFoundation();
+          render(); triggerAutoFoundation(); performAutoCheck();
         };
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length-1])}"></playing-card>`;
@@ -519,8 +513,8 @@
       });
       document.getElementById("btn-undo").onclick = popHistory;
       document.getElementById("btn-restart").onclick = restartGame;
-      document.getElementById("btn-check").onclick = checkStuck;
       document.getElementById("new-game").onclick = startNewGame;
+      document.getElementById("chk-autocheck").onchange = () => { performAutoCheck(); };
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {
