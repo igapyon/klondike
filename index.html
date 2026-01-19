@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Player Priority Edition</title>
+    <title>Klondike - Solvable Only</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -20,9 +20,12 @@
       }
       header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
       h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; }
+      .controls { display: flex; gap: 10px; align-items: center; }
       button { background: #ece9d8; color: black; border: 1px solid #003c74; padding: 6px 16px; border-radius: 3px; font-size: 12px; cursor: pointer; }
       button:hover { box-shadow: 0 0 0 1px #f5f2ea inset; }
       button:active { transform: translateY(1px); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; display: none; }
       
       .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; }
       .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; }
@@ -51,7 +54,14 @@
         <div class="win-msg">Congratulations</div>
         <button onclick="location.reload()">Deal Again</button>
     </div>
-    <header><h1>Solitaire (Player Priority)</h1><div class="controls"><button id="new-game">New Game (F2)</button></div></header>
+    <header>
+      <h1>Solitaire (Solvable Deals)</h1>
+      <div class="controls">
+        <span id="status-msg">Finding Solvable Deal...</span>
+        <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
+        <button id="new-game">New Game (F2)</button>
+      </div>
+    </header>
     <main class="board">
       <section class="top-row">
         <div id="stock" class="slot"></div><div id="waste" class="slot"></div>
@@ -68,82 +78,239 @@
     </main>
 
     <script>
+      /* --- Solvable Logic Implementation --- */
       const SUITS = ["spades", "hearts", "diamonds", "clubs"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
-      const INITIAL_AUTO_DELAY = 800;
       let state = null;
+      let historyStack = [];
       let isAutoFinishing = false; 
 
-      function createCard(s, r) { return { suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false }; }
+      // ------------------------------------------
+      // Simulation Logic (The "Bot")
+      // ------------------------------------------
+      class Simulator {
+        constructor() {}
 
-      function shuffleDeck() {
-        const d = [];
-        for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push(createCard(s, r));
-        for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
-        return d;
-      }
+        // Deep copy state
+        clone(s) { return JSON.parse(JSON.stringify(s)); }
 
-      function initState() {
-        console.clear();
-        console.log("Mode: Draw One / Priority: Tableau > Foundation");
-        isAutoFinishing = false;
-        let d, t;
-        let attempts = 0;
-        do {
-            d = shuffleDeck();
-            t = Array.from({ length: 7 }, () => []);
-            const tempDeck = [...d];
-            for (let i = 0; i < 7; i++) {
-                for (let j = 0; j <= i; j++) {
-                    const c = tempDeck.pop(); c.isOpen = (j === i); t[i].push(c);
+        // Attempt to find a winning deck (limit 500 attempts)
+        findSolvableDeck() {
+            let attempts = 0;
+            while (attempts < 500) {
+                const deck = this.createDeck();
+                const startState = this.deal(deck);
+                // Run simulation
+                if (this.canSolve(this.clone(startState))) {
+                    console.log(`Solvable deck found after ${attempts + 1} attempts.`);
+                    return startState;
+                }
+                attempts++;
+            }
+            console.warn("Could not find guaranteed solvable deck. Returning random.");
+            return this.deal(this.createDeck());
+        }
+
+        createDeck() {
+            const d = [];
+            for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false });
+            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+            return d;
+        }
+
+        deal(d) {
+             let t = Array.from({ length: 7 }, () => []);
+             const tempDeck = [...d];
+             for (let i = 0; i < 7; i++) {
+                 for (let j = 0; j <= i; j++) {
+                     const c = tempDeck.pop(); c.isOpen = (j === i); t[i].push(c);
+                 }
+             }
+             return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
+        }
+
+        // Greedy solver simulation
+        canSolve(simState) {
+            let moves = 0;
+            let noProgressLoop = 0;
+            const LIMIT = 1500; // Max moves to try per game
+
+            while (moves < LIMIT && noProgressLoop < 50) {
+                let moved = false;
+
+                // 1. Try Tableau to Foundation
+                for (let i = 0; i < 7; i++) {
+                    const col = simState.tableau[i];
+                    if (col.length > 0) {
+                        const c = col[col.length - 1];
+                        if (this.checkFoundation(simState, c, c.suit)) {
+                            simState.foundations[c.suit].push(col.pop());
+                            if (col.length > 0) col[col.length - 1].isOpen = true;
+                            moved = true; break; // Restart loop on move
+                        }
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+
+                // 2. Try Waste to Foundation
+                if (simState.waste.length > 0) {
+                    const c = simState.waste[simState.waste.length - 1];
+                    if (this.checkFoundation(simState, c, c.suit)) {
+                        simState.foundations[c.suit].push(simState.waste.pop());
+                        moved = true;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+
+                // 3. Try Tableau to Tableau (Prioritize revealing hidden cards)
+                for (let i = 0; i < 7; i++) {
+                    const col = simState.tableau[i];
+                    if (col.length === 0) continue;
+                    // Find the deepest open card
+                    let openIdx = -1;
+                    for(let k=0; k<col.length; k++) { if(col[k].isOpen) { openIdx=k; break; } }
+                    if (openIdx === -1) continue; 
+
+                    // Don't move a King from an empty slot to another empty slot (useless)
+                    if (openIdx === 0 && col[openIdx].rank === 13) continue;
+
+                    const cardToMove = col[openIdx];
+                    const target = this.findTableauTarget(simState, cardToMove, i);
+                    if (target !== -1) {
+                        const run = col.splice(openIdx);
+                        simState.tableau[target] = simState.tableau[target].concat(run);
+                        if (col.length > 0) col[col.length - 1].isOpen = true;
+                        moved = true; break;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+
+                // 4. Try Waste to Tableau
+                if (simState.waste.length > 0) {
+                    const c = simState.waste[simState.waste.length - 1];
+                    const target = this.findTableauTarget(simState, c, -1);
+                    if (target !== -1) {
+                        simState.tableau[target].push(simState.waste.pop());
+                        moved = true;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+
+                // 5. Draw from Stock
+                if (simState.stock.length > 0) {
+                    const c = simState.stock.pop(); c.isOpen = true;
+                    simState.waste.push(c);
+                    moved = true;
+                } else if (simState.stock.length === 0 && simState.waste.length > 0) {
+                    // Recycle waste
+                    simState.stock = simState.waste.reverse();
+                    simState.stock.forEach(x => x.isOpen = false);
+                    simState.waste = [];
+                    moved = true;
+                }
+
+                if (moved) {
+                     moves++; 
+                     // Drawing is technically a move, but if we just cycle without placing, it's 'no progress'
+                     if (simState.stock.length === 0 && simState.waste.length === 0) noProgressLoop = 0; // Progress!
+                     else noProgressLoop++;
+                } else {
+                    break; // No moves possible
                 }
             }
-            attempts++;
-            const hasAce = t.map(col => col[col.length-1]).some(c => c.rank === 1);
-            if (hasAce || attempts > 100) break;
-        } while (true);
-        return { stock: d.slice(0, 24), waste: [], foundations: [[],[],[],[]], tableau: t };
+
+            // Check if win
+            const totalFound = simState.foundations.reduce((a, b) => a + b.length, 0);
+            return totalFound === 52;
+        }
+
+        checkFoundation(s, card, fIdx) {
+            const f = s.foundations[fIdx];
+            if (f.length === 0) return card.rank === 1 && card.suit === fIdx;
+            const top = f[f.length - 1];
+            return card.suit === top.suit && card.rank === top.rank + 1;
+        }
+
+        findTableauTarget(s, card, ignoreIdx) {
+            for (let i = 0; i < 7; i++) {
+                if (i === ignoreIdx) continue;
+                const dest = s.tableau[i];
+                if (dest.length === 0) {
+                    if (card.rank === 13) return i;
+                } else {
+                    const top = dest[dest.length - 1];
+                    if (card.rank === top.rank - 1 && card.color !== top.color) return i;
+                }
+            }
+            return -1;
+        }
       }
+      // ------------------------------------------
+
+      const bot = new Simulator();
 
       function getCid(card) {
         if (!card || !card.isOpen) return "back"; 
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
 
+      function pushHistory() {
+        if (state) {
+            if (historyStack.length > 50) historyStack.shift(); 
+            historyStack.push(JSON.stringify(state));
+            updateUndoButton();
+        }
+      }
+
+      function popHistory() {
+        if (historyStack.length === 0) return;
+        state = JSON.parse(historyStack.pop());
+        render();
+        updateUndoButton();
+      }
+
+      function updateUndoButton() {
+        document.getElementById("btn-undo").disabled = (historyStack.length === 0);
+      }
+
+      // --- Main Init ---
+      async function startNewGame() {
+        const status = document.getElementById("status-msg");
+        const btn = document.getElementById("new-game");
+        status.style.display = "block";
+        btn.disabled = true;
+        
+        // Give UI a moment to show "Finding..."
+        await new Promise(r => setTimeout(r, 50));
+
+        state = bot.findSolvableDeck(); // Run the heavy task
+        historyStack = [];
+        isAutoFinishing = false;
+        
+        status.style.display = "none";
+        btn.disabled = false;
+        render();
+        updateUndoButton();
+      }
+
+      // --- Game Logic (No Auto Safety, Just Rules) ---
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
-        if (found.length === 0) {
-          return { ok: (card.rank === 1 && card.suit === fIdx) };
-        }
+        if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
         const top = found[found.length - 1];
         return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
       }
 
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
-        if (dest.length === 0) {
-            return { ok: (card.rank === 13), type: "Kのみ" };
-        }
+        if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
         const top = dest[dest.length - 1];
         const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
         return match ? { ok: true, type: "連番" } : { ok: false };
       }
 
-      function isSafeToAutoMove(card) {
-        if (card.rank === 1) return true; 
-        const targetRank = card.rank - 1;
-        const otherColor = 1 - card.color;
-        let count = 0;
-        state.foundations.forEach((f, idx) => {
-            const fColor = (idx === 0 || idx === 3) ? 0 : 1;
-            if (fColor === otherColor) {
-                const top = f[f.length - 1];
-                if (top && top.rank >= targetRank) count++;
-            }
-        });
-        return count === 2; 
-      }
-
+      // 賢いオート移動ロジックは削除。単純に上がれるなら上げるオート機能（詰みチェックなし）
+      // ただし、ユーザーの操作感を優先するため、オートは「移動後に」発火させる
       function triggerAutoFoundation(immediate = false) {
         if (isAutoFinishing) return;
         const scanAndMove = () => {
@@ -152,16 +319,23 @@
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
-              if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
+              // もう「安全か？」チェックはしない。上がれるなら上がる。
+              // ただし、勝手に上がると邪魔なので、オートは最小限にするか？
+              // いえ、「解ける問題」なので、基本的には上がってOKだが、
+              // 以前のように「2を上げたせいで3が置けない」ストレス回避のため、
+              // オートは「手詰まり防止」程度に留めるのが良いが、
+              // 今回は「No Rules」リクエストなので、標準的なオートのみ実装
+              if (checkFoundationMove(card, card.suit).ok) {
+                // ここで履歴保存はしない（一連の動作として扱う）
                 state.foundations[card.suit].push(col.pop());
                 if (col.length > 0) col[col.length - 1].isOpen = true;
-                moved = true; break;
+                moved = true; break; 
               }
             }
           }
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
-            if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
+            if (checkFoundationMove(card, card.suit).ok) {
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
             }
@@ -169,11 +343,11 @@
           if (moved) { render(); setTimeout(triggerAutoFoundation, 100, true); }
           else checkVictoryCondition();
         };
+        // オートはユーザー操作後に少し待ってから発火（邪魔しないように）
         if (immediate) scanAndMove();
-        else setTimeout(scanAndMove, INITIAL_AUTO_DELAY);
+        else setTimeout(scanAndMove, 800);
       }
 
-      /* --- [修正] クリック時の優先順位を変更 --- */
       function handleSlotClick(type, idx, mode = "single") {
         if (isAutoFinishing) return;
         let sourceArray, card, cardIdx;
@@ -189,23 +363,23 @@
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
 
-        // ダブルクリック：強制的に組札へ送る（ユーザーが「上げたい」と意思表示した時）
+        // Double Click -> Force Foundation
         if (mode !== "single" && isSingleCard) {
             if (checkFoundationMove(card, card.suit).ok) {
+                pushHistory();
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
                 render(); triggerAutoFoundation(); return;
             }
         }
 
-        // シングルクリック：まずは「場札(Tableau)」への移動を最優先する
+        // Single Click -> Priority: Tableau > Foundation
         let bestTarget = -1;
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
             const resT = canPlaceOnTableau(run[0], i);
             if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
         }
-        // 連番が見つからない場合、Kなら空き列を探す
         if (bestTarget === -1) {
             for (let i = 0; i < 7; i++) {
                 if (type === 'tableau' && i === idx) continue;
@@ -214,8 +388,8 @@
             }
         }
 
-        // 場札への移動先が見つかったら、そこへ移動
         if (bestTarget !== -1) {
+            pushHistory();
             state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
             if (type === 'waste') state.waste.pop();
             else {
@@ -225,9 +399,9 @@
             render(); triggerAutoFoundation(); return;
         }
 
-        // ★場札に置けない場合のみ、組札への移動を試みる★
         if (isSingleCard) {
              if (checkFoundationMove(card, card.suit).ok) {
+                pushHistory();
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
                 render(); triggerAutoFoundation(); return;
@@ -277,6 +451,7 @@
         }
         sEl.onclick = () => {
           if (isAutoFinishing) return;
+          pushHistory();
           if (state.stock.length === 0) {
             state.stock = state.waste.reverse(); 
             state.stock.forEach(c => c.isOpen = false); 
@@ -313,13 +488,19 @@
           colEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('tableau', colIdx, "right"); };
         });
       }
+      
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); popHistory(); }
+        if (e.key === 'F2') { e.preventDefault(); startNewGame(); }
+      });
+      document.getElementById("btn-undo").onclick = popHistory;
+      document.getElementById("new-game").onclick = startNewGame;
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {
-          setTimeout(() => { state = initState(); render(); }, 300);
+          setTimeout(startNewGame, 300);
         });
       });
-      document.getElementById("new-game").onclick = () => { state = initState(); render(); };
     </script>
   </body>
 </html>
