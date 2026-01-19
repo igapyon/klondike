@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Solvable Only</title>
+    <title>Klondike - Ultimate Edition</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -55,9 +55,9 @@
         <button onclick="location.reload()">Deal Again</button>
     </div>
     <header>
-      <h1>Solitaire (Solvable Deals)</h1>
+      <h1>Solitaire (Ultimate)</h1>
       <div class="controls">
-        <span id="status-msg">Finding Solvable Deal...</span>
+        <span id="status-msg">Generating Solvable Deal...</span>
         <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
         <button id="new-game">New Game (F2)</button>
       </div>
@@ -78,46 +78,38 @@
     </main>
 
     <script>
-      /* --- Solvable Logic Implementation --- */
+      /* --- [Core] Configuration & Constants --- */
       const SUITS = ["spades", "hearts", "diamonds", "clubs"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
       let state = null;
       let historyStack = [];
       let isAutoFinishing = false; 
 
-      // ------------------------------------------
-      // Simulation Logic (The "Bot")
-      // ------------------------------------------
+      /* --- [Feature 1] Solvable Deck Generator --- */
       class Simulator {
         constructor() {}
-
-        // Deep copy state
         clone(s) { return JSON.parse(JSON.stringify(s)); }
-
-        // Attempt to find a winning deck (limit 500 attempts)
         findSolvableDeck() {
             let attempts = 0;
+            // Try up to 500 random deals to find a winnable one
             while (attempts < 500) {
                 const deck = this.createDeck();
                 const startState = this.deal(deck);
-                // Run simulation
                 if (this.canSolve(this.clone(startState))) {
-                    console.log(`Solvable deck found after ${attempts + 1} attempts.`);
+                    console.log(`[System] Solvable deck found after ${attempts + 1} attempts.`);
                     return startState;
                 }
                 attempts++;
             }
-            console.warn("Could not find guaranteed solvable deck. Returning random.");
+            console.warn("[System] Timeout. Returning random deck.");
             return this.deal(this.createDeck());
         }
-
         createDeck() {
             const d = [];
             for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false });
             for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
             return d;
         }
-
         deal(d) {
              let t = Array.from({ length: 7 }, () => []);
              const tempDeck = [...d];
@@ -128,54 +120,45 @@
              }
              return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
         }
-
-        // Greedy solver simulation
+        // Simple greedy solver to check winnability
         canSolve(simState) {
             let moves = 0;
             let noProgressLoop = 0;
-            const LIMIT = 1500; // Max moves to try per game
-
+            const LIMIT = 1500; 
             while (moves < LIMIT && noProgressLoop < 50) {
                 let moved = false;
-
-                // 1. Try Tableau to Foundation
+                // 1. Tableau -> Foundation
                 for (let i = 0; i < 7; i++) {
                     const col = simState.tableau[i];
                     if (col.length > 0) {
                         const c = col[col.length - 1];
-                        if (this.checkFoundation(simState, c, c.suit)) {
+                        if (this.checkF(simState, c, c.suit)) {
                             simState.foundations[c.suit].push(col.pop());
                             if (col.length > 0) col[col.length - 1].isOpen = true;
-                            moved = true; break; // Restart loop on move
+                            moved = true; break;
                         }
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-
-                // 2. Try Waste to Foundation
+                // 2. Waste -> Foundation
                 if (simState.waste.length > 0) {
                     const c = simState.waste[simState.waste.length - 1];
-                    if (this.checkFoundation(simState, c, c.suit)) {
+                    if (this.checkF(simState, c, c.suit)) {
                         simState.foundations[c.suit].push(simState.waste.pop());
                         moved = true;
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-
-                // 3. Try Tableau to Tableau (Prioritize revealing hidden cards)
+                // 3. Tableau -> Tableau
                 for (let i = 0; i < 7; i++) {
                     const col = simState.tableau[i];
                     if (col.length === 0) continue;
-                    // Find the deepest open card
                     let openIdx = -1;
                     for(let k=0; k<col.length; k++) { if(col[k].isOpen) { openIdx=k; break; } }
                     if (openIdx === -1) continue; 
-
-                    // Don't move a King from an empty slot to another empty slot (useless)
-                    if (openIdx === 0 && col[openIdx].rank === 13) continue;
-
+                    if (openIdx === 0 && col[openIdx].rank === 13) continue; // Don't move King from empty
                     const cardToMove = col[openIdx];
-                    const target = this.findTableauTarget(simState, cardToMove, i);
+                    const target = this.findTabTarget(simState, cardToMove, i);
                     if (target !== -1) {
                         const run = col.splice(openIdx);
                         simState.tableau[target] = simState.tableau[target].concat(run);
@@ -184,60 +167,45 @@
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-
-                // 4. Try Waste to Tableau
+                // 4. Waste -> Tableau
                 if (simState.waste.length > 0) {
                     const c = simState.waste[simState.waste.length - 1];
-                    const target = this.findTableauTarget(simState, c, -1);
+                    const target = this.findTabTarget(simState, c, -1);
                     if (target !== -1) {
                         simState.tableau[target].push(simState.waste.pop());
                         moved = true;
                     }
                 }
                 if (moved) { moves++; noProgressLoop=0; continue; }
-
-                // 5. Draw from Stock
+                // 5. Draw
                 if (simState.stock.length > 0) {
                     const c = simState.stock.pop(); c.isOpen = true;
-                    simState.waste.push(c);
-                    moved = true;
+                    simState.waste.push(c); moved = true;
                 } else if (simState.stock.length === 0 && simState.waste.length > 0) {
-                    // Recycle waste
                     simState.stock = simState.waste.reverse();
                     simState.stock.forEach(x => x.isOpen = false);
-                    simState.waste = [];
-                    moved = true;
+                    simState.waste = []; moved = true;
                 }
-
                 if (moved) {
                      moves++; 
-                     // Drawing is technically a move, but if we just cycle without placing, it's 'no progress'
-                     if (simState.stock.length === 0 && simState.waste.length === 0) noProgressLoop = 0; // Progress!
+                     if (simState.stock.length === 0 && simState.waste.length === 0) noProgressLoop = 0;
                      else noProgressLoop++;
-                } else {
-                    break; // No moves possible
-                }
+                } else break;
             }
-
-            // Check if win
-            const totalFound = simState.foundations.reduce((a, b) => a + b.length, 0);
-            return totalFound === 52;
+            return simState.foundations.reduce((a, b) => a + b.length, 0) === 52;
         }
-
-        checkFoundation(s, card, fIdx) {
+        checkF(s, card, fIdx) {
             const f = s.foundations[fIdx];
             if (f.length === 0) return card.rank === 1 && card.suit === fIdx;
             const top = f[f.length - 1];
             return card.suit === top.suit && card.rank === top.rank + 1;
         }
-
-        findTableauTarget(s, card, ignoreIdx) {
+        findTabTarget(s, card, ignoreIdx) {
             for (let i = 0; i < 7; i++) {
                 if (i === ignoreIdx) continue;
                 const dest = s.tableau[i];
-                if (dest.length === 0) {
-                    if (card.rank === 13) return i;
-                } else {
+                if (dest.length === 0) { if (card.rank === 13) return i; } 
+                else {
                     const top = dest[dest.length - 1];
                     if (card.rank === top.rank - 1 && card.color !== top.color) return i;
                 }
@@ -245,15 +213,35 @@
             return -1;
         }
       }
-      // ------------------------------------------
-
       const bot = new Simulator();
 
+      /* --- [Feature 2] Safe Auto-Move Logic --- */
+      // 勝手にカードを持っていかないための安全装置
+      function isSafeToAutoMove(card) {
+        // Aはいつでも上げてOK
+        if (card.rank === 1) return true; 
+        
+        // それ以外は、反対色のランクが十分に育っているか確認する
+        // 例: ハートの3を上げるには、スペードとクラブの2が既に組札にないといけない
+        const targetRank = card.rank - 1;
+        const otherColor = 1 - card.color;
+        let count = 0;
+        state.foundations.forEach((f, idx) => {
+            const fColor = (idx === 0 || idx === 3) ? 0 : 1;
+            if (fColor === otherColor) {
+                const top = f[f.length - 1];
+                if (top && top.rank >= targetRank) count++;
+            }
+        });
+        // 反対色の土台が2つとも準備完了なら、このカードはもう場に不要なので上げてOK
+        return count === 2; 
+      }
+
+      /* --- [Game] Standard Logic --- */
       function getCid(card) {
         if (!card || !card.isOpen) return "back"; 
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
-
       function pushHistory() {
         if (state) {
             if (historyStack.length > 50) historyStack.shift(); 
@@ -261,46 +249,18 @@
             updateUndoButton();
         }
       }
-
       function popHistory() {
         if (historyStack.length === 0) return;
         state = JSON.parse(historyStack.pop());
-        render();
-        updateUndoButton();
+        render(); updateUndoButton();
       }
-
-      function updateUndoButton() {
-        document.getElementById("btn-undo").disabled = (historyStack.length === 0);
-      }
-
-      // --- Main Init ---
-      async function startNewGame() {
-        const status = document.getElementById("status-msg");
-        const btn = document.getElementById("new-game");
-        status.style.display = "block";
-        btn.disabled = true;
-        
-        // Give UI a moment to show "Finding..."
-        await new Promise(r => setTimeout(r, 50));
-
-        state = bot.findSolvableDeck(); // Run the heavy task
-        historyStack = [];
-        isAutoFinishing = false;
-        
-        status.style.display = "none";
-        btn.disabled = false;
-        render();
-        updateUndoButton();
-      }
-
-      // --- Game Logic (No Auto Safety, Just Rules) ---
+      function updateUndoButton() { document.getElementById("btn-undo").disabled = (historyStack.length === 0); }
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
         if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
         const top = found[found.length - 1];
         return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
       }
-
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
         if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
@@ -309,8 +269,17 @@
         return match ? { ok: true, type: "連番" } : { ok: false };
       }
 
-      // 賢いオート移動ロジックは削除。単純に上がれるなら上げるオート機能（詰みチェックなし）
-      // ただし、ユーザーの操作感を優先するため、オートは「移動後に」発火させる
+      async function startNewGame() {
+        const status = document.getElementById("status-msg");
+        const btn = document.getElementById("new-game");
+        status.style.display = "block"; btn.disabled = true;
+        await new Promise(r => setTimeout(r, 50));
+        state = bot.findSolvableDeck();
+        historyStack = []; isAutoFinishing = false;
+        status.style.display = "none"; btn.disabled = false;
+        render(); updateUndoButton();
+      }
+
       function triggerAutoFoundation(immediate = false) {
         if (isAutoFinishing) return;
         const scanAndMove = () => {
@@ -319,14 +288,8 @@
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
-              // もう「安全か？」チェックはしない。上がれるなら上がる。
-              // ただし、勝手に上がると邪魔なので、オートは最小限にするか？
-              // いえ、「解ける問題」なので、基本的には上がってOKだが、
-              // 以前のように「2を上げたせいで3が置けない」ストレス回避のため、
-              // オートは「手詰まり防止」程度に留めるのが良いが、
-              // 今回は「No Rules」リクエストなので、標準的なオートのみ実装
-              if (checkFoundationMove(card, card.suit).ok) {
-                // ここで履歴保存はしない（一連の動作として扱う）
+              // ★ここに安全装置を復活させました★
+              if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
                 state.foundations[card.suit].push(col.pop());
                 if (col.length > 0) col[col.length - 1].isOpen = true;
                 moved = true; break; 
@@ -335,7 +298,8 @@
           }
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
-            if (checkFoundationMove(card, card.suit).ok) {
+            // ★ここにも安全装置★
+            if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
             }
@@ -343,7 +307,6 @@
           if (moved) { render(); setTimeout(triggerAutoFoundation, 100, true); }
           else checkVictoryCondition();
         };
-        // オートはユーザー操作後に少し待ってから発火（邪魔しないように）
         if (immediate) scanAndMove();
         else setTimeout(scanAndMove, 800);
       }
@@ -363,7 +326,7 @@
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
 
-        // Double Click -> Force Foundation
+        // Double Click: Force Move to Foundation (Ignore safety check)
         if (mode !== "single" && isSingleCard) {
             if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
@@ -373,7 +336,7 @@
             }
         }
 
-        // Single Click -> Priority: Tableau > Foundation
+        // Single Click: Prioritize Tableau
         let bestTarget = -1;
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
@@ -399,6 +362,7 @@
             render(); triggerAutoFoundation(); return;
         }
 
+        // Single Click: Foundation (Only if clicked, safety check ignored for manual click)
         if (isSingleCard) {
              if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
@@ -412,12 +376,10 @@
       function checkVictoryCondition() {
         const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
         if (total === 52) { document.getElementById("win-overlay").style.display = "flex"; return; }
-        
         const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
         const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
         if (stockEmpty && allTableauOpen && !isAutoFinishing) {
-            isAutoFinishing = true;
-            setTimeout(autoDissolve, 50);
+            isAutoFinishing = true; setTimeout(autoDissolve, 50);
         }
       }
 
@@ -444,37 +406,27 @@
             const newEl = el.cloneNode(true);
             el.parentNode.replaceChild(newEl, el);
         });
-
         const sEl = document.getElementById("stock");
-        if (state.stock.length > 0) {
-          sEl.innerHTML = `<playing-card cid="back"></playing-card>`;
-        }
+        if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back"></playing-card>`; }
         sEl.onclick = () => {
           if (isAutoFinishing) return;
           pushHistory();
           if (state.stock.length === 0) {
-            state.stock = state.waste.reverse(); 
-            state.stock.forEach(c => c.isOpen = false); 
-            state.waste = [];
+            state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
           } else {
-            const c = state.stock.pop(); 
-            c.isOpen = true; 
-            state.waste.push(c);
+            const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           }
           render(); triggerAutoFoundation();
         };
-
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length-1])}"></playing-card>`;
         wEl.onclick = () => handleSlotClick('waste', -1, "single");
         wEl.ondblclick = () => handleSlotClick('waste', -1, "double");
         wEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('waste', -1, "right"); };
-
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
           if (stack.length > 0) el.innerHTML = `<playing-card cid="${getCid(stack[stack.length-1])}"></playing-card>`;
         });
-
         state.tableau.forEach((col, colIdx) => {
           const colEl = document.getElementById(`tableau-${colIdx}`);
           col.forEach((card, rowIdx) => {
