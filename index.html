@@ -2,8 +2,8 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Stable Click</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Klondike - Debug Final</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
@@ -16,11 +16,13 @@
       body {
         margin: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; color: var(--ink);
         background: var(--bg);
-        min-height: 100vh; overflow: hidden; user-select: none;
+        min-height: 100vh; overflow: hidden; 
+        user-select: none; -webkit-user-select: none;
+        touch-action: manipulation;
       }
-      header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
+      header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
       h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; }
-      .controls { display: flex; gap: 12px; align-items: center; }
+      .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
       
       .toggle-label { display: flex; align-items: center; cursor: pointer; color: white; font-size: 12px; gap: 5px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
       .toggle-label input { cursor: pointer; }
@@ -30,20 +32,26 @@
       button:active { transform: translateY(1px); }
       button:disabled { opacity: 0.5; cursor: not-allowed; }
       
-      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 100px; text-align: right; }
+      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 80px; text-align: right; }
       
-      .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; }
-      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; }
+      .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; transition: gap 0.3s; }
+      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; justify-content: center; transition: gap 0.3s; }
+
+      @media (max-width: 800px) {
+        :root { --card-w: 13vw; --card-h: 18.2vw; }
+        .board { padding: 10px 10px; gap: 20px; }
+        .top-row, .bottom-row { gap: 8px; }
+      }
+
       .slot, .column {
         position: relative; width: var(--card-w); min-height: var(--card-h);
         border-radius: 4px; 
         border: 2px solid rgba(255,255,255,0.2);
-        cursor: pointer; /* 列全体をクリック可能に */
+        cursor: pointer; 
         transition: height 0.2s;
       }
       .slot:empty, .column:empty { border: 2px solid rgba(0,0,0,0.1); background: rgba(0,0,0,0.05); }
 
-      /* カードはクリックイベントを親に委譲するため、ポインターイベントは有効のままにする */
       playing-card { position: absolute; width: var(--card-w); height: var(--card-h); cursor: pointer; filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.6)); transition: top 0.1s; pointer-events: auto; }
       .stock-count { display:none; }
       
@@ -56,11 +64,12 @@
       .win-msg { font-size: 40px; margin-bottom: 20px; font-family: "Times New Roman", serif; }
       
       #stuck-warning {
-        position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+        position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
         background: rgba(255, 0, 0, 0.85); color: white; padding: 10px 20px;
         border-radius: 20px; font-weight: bold; pointer-events: none;
         opacity: 0; transition: opacity 0.3s; z-index: 50;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 14px;
+        white-space: nowrap;
       }
     </style>
   </head>
@@ -79,9 +88,9 @@
         <label class="toggle-label" title="自動判定＋デバッグログ出力">
             <input type="checkbox" id="chk-autocheck"> 常時チェック
         </label>
-        <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
+        <button id="btn-undo" disabled>Undo</button>
         <button id="btn-restart" disabled>Restart</button>
-        <button id="new-game">New Game (F2)</button>
+        <button id="new-game">New Game</button>
       </div>
     </header>
     <main class="board">
@@ -119,20 +128,19 @@
             while (attempts < 500) {
                 const deck = this.createDeck();
                 const startState = this.deal(deck);
-                if (this.canSolve(this.clone(startState))) {
-                    console.log(`[System] Solvable deck found after ${attempts + 1} attempts.`);
-                    return startState;
-                }
+                if (this.canSolve(this.clone(startState))) return startState;
                 attempts++;
             }
             return this.deal(this.createDeck());
         }
+
         checkCurrentState(currentState) {
             for(let i=0; i<5; i++) {
                 if (this.canSolve(this.clone(currentState))) return true;
             }
             return false;
         }
+
         createDeck() {
             const d = [];
             for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false });
@@ -149,6 +157,7 @@
              }
              return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
         }
+
         canSolve(simState) {
             let moves = 0;
             let noProgressLoop = 0;
@@ -257,6 +266,7 @@
         if (!card || !card.isOpen) return "back"; 
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
+      
       function pushHistory() {
         if (state) {
             if (historyStack.length > 50) historyStack.shift(); 
@@ -264,11 +274,13 @@
             updateButtons();
         }
       }
+      
       function popHistory() {
         if (historyStack.length === 0) return;
         state = JSON.parse(historyStack.pop());
         render(); updateButtons(); performAutoCheck();
       }
+      
       function updateButtons() { 
         document.getElementById("btn-undo").disabled = (historyStack.length === 0);
         document.getElementById("btn-restart").disabled = (initialState === null);
@@ -298,19 +310,22 @@
       async function performAutoCheck() {
         const isCheckEnabled = document.getElementById("chk-autocheck").checked;
         if (!isCheckEnabled || isAutoFinishing || !state) { clearStatus(); return; }
+        
         showStatus("Chk...", "#ccc");
         await new Promise(r => setTimeout(r, 20));
+        
         const isWinnable = bot.checkCurrentState(state);
         
-        // --- Console Debug Log (Requested) ---
+        // --- Full Debug Log (Restored) ---
         console.clear();
-        console.group("%c[DEBUG] Current State Check", "color: orange; font-weight: bold;");
-        console.log("Winnable:", isWinnable ? "YES" : "NO");
+        console.group("%c[DEBUG] Game Status", "color: orange; font-weight: bold; font-size: 12px;");
+        console.log(`%cWinnable: ${isWinnable ? "YES" : "NO"}`, isWinnable ? "color: green; font-weight:bold" : "color: red; font-weight:bold");
         console.log("Stock:", JSON.parse(JSON.stringify(state.stock)));
         console.log("Waste:", JSON.parse(JSON.stringify(state.waste)));
         console.log("Tableau:", JSON.parse(JSON.stringify(state.tableau)));
         console.log("Foundations:", JSON.parse(JSON.stringify(state.foundations)));
         console.groupEnd();
+        // --------------------------------
 
         if (isWinnable) { showStatus("OK", "#00ff00"); hideWarning(); }
         else { showStatus("STUCK?", "#ff5555"); showWarning(); }
@@ -328,7 +343,7 @@
         isAutoFinishing = false;
         clearStatus();
         btnNew.disabled = false;
-        render(); updateButtons();
+        render(); updateButtons(); performAutoCheck(); // Init Check
       }
 
       function restartGame() {
@@ -338,8 +353,7 @@
             historyStack = [];
             isAutoFinishing = false;
             clearStatus();
-            render();
-            updateButtons();
+            render(); updateButtons(); performAutoCheck();
         }
       }
 
@@ -377,35 +391,22 @@
         else setTimeout(scanAndMove, 800);
       }
 
-      // --- [Simplified Click Handler] ---
-      // specificCardIdx: if provided (from data-idx), attempts to act on that specific card
+      // --- [Event Delegation Click Handler] ---
       function handleSlotClick(type, idx, mode = "single", specificCardIdx = -1) {
         if (isAutoFinishing) return;
-        
-        // Debug Log
-        if(document.getElementById("chk-autocheck").checked) {
-             console.log(`Click: Type=${type}, Col=${idx}, Mode=${mode}, CardIdx=${specificCardIdx}`);
-        }
-        
         clearStatus();
         let sourceArray, cardIdx;
         
         if (type === 'waste') {
             if (state.waste.length === 0) return;
             sourceArray = state.waste; 
-            cardIdx = sourceArray.length - 1; // Waste is always top card
+            cardIdx = sourceArray.length - 1; 
         } else {
             sourceArray = state.tableau[idx]; 
-            if (sourceArray.length === 0 && specificCardIdx === -1) return; // Clicking empty
-            
-            if (specificCardIdx !== -1) {
-                cardIdx = specificCardIdx;
-            } else {
-                // Fallback: click column background -> grab top card
-                cardIdx = sourceArray.length - 1;
-            }
-            
-            if (!sourceArray[cardIdx].isOpen) return; // Cannot grab closed card
+            if (sourceArray.length === 0 && specificCardIdx === -1) return;
+            if (specificCardIdx !== -1) cardIdx = specificCardIdx;
+            else cardIdx = sourceArray.length - 1;
+            if (!sourceArray[cardIdx].isOpen) return;
         }
 
         const card = sourceArray[cardIdx];
@@ -423,7 +424,7 @@
             }
         }
         
-        // 2. Single Click -> Try Tableau Move (Stack)
+        // 2. Single Click -> Tableau Move
         if (!moveSuccess) {
             let bestTarget = -1;
             for (let i = 0; i < 7; i++) {
@@ -450,8 +451,7 @@
             }
         }
 
-        // 3. Single Click -> Try Foundation (Last Resort)
-        // If stack move failed, AND it's a single card (bottom of stack), try moving UP
+        // 3. Foundation Fallback
         if (!moveSuccess && isSingleCard) {
              if (checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
@@ -466,7 +466,10 @@
 
       function checkVictoryCondition() {
         const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
-        if (total === 52) { document.getElementById("win-overlay").style.display = "flex"; return; }
+        if (total === 52) { 
+            document.getElementById("win-overlay").style.display = "flex"; 
+            return; 
+        }
         const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
         const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
         if (stockEmpty && allTableauOpen && !isAutoFinishing) {
@@ -525,37 +528,27 @@
 
         state.tableau.forEach((col, colIdx) => {
           const colEl = document.getElementById(`tableau-${colIdx}`);
-          const stackHeight = 140 + (col.length > 0 ? (col.length - 1) * 20 : 0);
+          
+          const overlap = col.length > 15 ? 15 : 20; 
+          const stackHeight = 140 + (col.length > 0 ? (col.length - 1) * overlap : 0);
           colEl.style.height = `${stackHeight}px`;
 
-          // --- Click delegation: use data-idx ---
           col.forEach((card, rowIdx) => {
             const el = document.createElement("playing-card");
             el.setAttribute("cid", getCid(card));
-            el.style.top = `${rowIdx * 20}px`; 
-            el.dataset.idx = rowIdx; // Store index for delegation
+            el.style.top = `${rowIdx * overlap}px`; 
+            el.dataset.idx = rowIdx;
             colEl.appendChild(el);
           });
           
-          // Column click handler (Delegation)
           colEl.onclick = (e) => {
-              // Check if a card was clicked
               const cardEl = e.target.closest('playing-card');
-              if (cardEl) {
-                  const idx = parseInt(cardEl.dataset.idx);
-                  handleSlotClick('tableau', colIdx, "single", idx);
-              } else {
-                  // Clicked empty space in column -> implies top card
-                  handleSlotClick('tableau', colIdx, "single", -1);
-              }
+              if (cardEl) handleSlotClick('tableau', colIdx, "single", parseInt(cardEl.dataset.idx));
+              else handleSlotClick('tableau', colIdx, "single", -1);
           };
-          
           colEl.ondblclick = (e) => {
               const cardEl = e.target.closest('playing-card');
-              if (cardEl) {
-                  const idx = parseInt(cardEl.dataset.idx);
-                  handleSlotClick('tableau', colIdx, "double", idx);
-              }
+              if (cardEl) handleSlotClick('tableau', colIdx, "double", parseInt(cardEl.dataset.idx));
           };
         });
       }
