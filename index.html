@@ -3,71 +3,77 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Strategic Delay Edition</title>
+    <title>Klondike - Windows Draw One</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
-        --bg: #0c3b2e; --felt: #0f4a39; 
-        --accent: #b2e2f2;
+        --bg: #008000; /* Windows XP Default Green */
+        --accent: #ffffff;
         --ink: #f5f2ea;
       }
       * { box-sizing: border-box; }
       body {
-        margin: 0; font-family: sans-serif; color: var(--ink);
-        background: radial-gradient(1200px 600px at 20% 0%, #1a6b51 0%, var(--bg) 45%, #072a20 100%);
-        min-height: 100vh; overflow: hidden;
+        margin: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; color: var(--ink);
+        background: var(--bg);
+        min-height: 100vh; overflow: hidden; user-select: none;
       }
       header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
-      h1 { margin: 0; font-size: 20px; color: var(--accent); letter-spacing: 0.1em; text-shadow: 0 0 10px rgba(178,226,242,0.5); }
-      button { background: #f7c96b; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 0 #b38a3d; }
-      button:active { transform: translateY(2px); box-shadow: 0 2px 0 #b38a3d; }
-      .board { padding: 0 24px 40px; display: grid; gap: 30px; max-width: 900px; margin: 0 auto; }
-      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 12px; }
+      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; }
+      button { background: #ece9d8; color: black; border: 1px solid #003c74; padding: 6px 16px; border-radius: 3px; font-size: 12px; cursor: pointer; }
+      button:hover { box-shadow: 0 0 0 1px #f5f2ea inset; }
+      button:active { transform: translateY(1px); }
+      
+      .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; }
+      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; }
       .slot, .column {
         position: relative; width: var(--card-w); min-height: var(--card-h);
-        border-radius: 8px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        border-radius: 4px; 
+        /* 空きスロットの枠線をうっすらと */
+        border: 2px solid rgba(255,255,255,0.2);
         cursor: pointer;
       }
-      .slot.empty::after { content: ""; position: absolute; inset: 10px; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; }
-      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); transition: all 0.2s ease-in-out; }
-      .stock-count { position: absolute; bottom: -24px; width: 100%; text-align: center; font-size: 12px; color: var(--accent); font-weight: bold; }
+      /* Windows風: 空きスロットのボーダーを消す（カードがあるように見せない） */
+      .slot:empty, .column:empty { border: 2px solid rgba(0,0,0,0.1); background: rgba(0,0,0,0.05); }
+
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.6)); transition: top 0.1s; }
+      .stock-count { display:none; } /* Windowsには枚数表示はない */
       
       #win-overlay {
-        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
         z-index: 100; flex-direction: column; align-items: center; justify-content: center;
-        color: var(--accent); animation: fadeIn 0.8s forwards;
+        color: white; animation: fadeIn 0.5s forwards;
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      .win-msg { font-size: 42px; font-weight: bold; margin-bottom: 20px; text-align: center; line-height: 1.2; text-shadow: 0 0 20px var(--accent); }
+      .win-msg { font-size: 40px; margin-bottom: 20px; font-family: "Times New Roman", serif; }
     </style>
   </head>
   <body oncontextmenu="return false;">
     <div id="win-overlay">
-        <div class="win-msg">ゲームクリア！</div>
-        <button onclick="location.reload()">もう一度あそぶ</button>
+        <div class="win-msg">Congratulations</div>
+        <button onclick="location.reload()">Deal Again</button>
     </div>
-    <header><h1>KLONDIKE - DELAYED AUTO</h1><div class="controls"><button id="new-game">New Game</button></div></header>
+    <header><h1>Solitaire (Draw One)</h1><div class="controls"><button id="new-game">New Game (F2)</button></div></header>
     <main class="board">
       <section class="top-row">
-        <div id="stock" class="slot empty"></div><div id="waste" class="slot empty"></div>
+        <div id="stock" class="slot"></div><div id="waste" class="slot"></div>
         <div class="spacer"></div>
-        <div id="foundation-0" class="slot empty"></div><div id="foundation-1" class="slot empty"></div>
-        <div id="foundation-2" class="slot empty"></div><div id="foundation-3" class="slot empty"></div>
+        <div id="foundation-0" class="slot"></div><div id="foundation-1" class="slot"></div>
+        <div id="foundation-2" class="slot"></div><div id="foundation-3" class="slot"></div>
       </section>
       <section class="bottom-row">
-        <div id="tableau-0" class="column empty"></div><div id="tableau-1" class="column empty"></div>
-        <div id="tableau-2" class="column empty"></div><div id="tableau-3" class="column empty"></div>
-        <div id="tableau-4" class="column empty"></div><div id="tableau-5" class="column empty"></div>
-        <div id="tableau-6" class="column empty"></div>
+        <div id="tableau-0" class="column"></div><div id="tableau-1" class="column"></div>
+        <div id="tableau-2" class="column"></div><div id="tableau-3" class="column"></div>
+        <div id="tableau-4" class="column"></div><div id="tableau-5" class="column"></div>
+        <div id="tableau-6" class="column"></div>
       </section>
     </main>
 
     <script>
-      /* --- [デバッグ出力設定] 削除・変更厳禁！ --- */
+      /* --- Windows Classic Logic (Draw One) --- */
       const SUITS = ["spades", "hearts", "diamonds", "clubs"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
-      const INITIAL_AUTO_DELAY = 1000; // Aなどが出るのを確認するためのタイムラグ (ms)
+      const INITIAL_AUTO_DELAY = 800;
       let state = null;
       let isAutoFinishing = false; 
 
@@ -81,9 +87,8 @@
       }
 
       function initState() {
-        /* --- [デバッグ出力：開始ログ] 削除厳禁！ --- */
         console.clear();
-        console.log("%c[System] 新しいゲームを開始。1秒のタイムラグ設定を適用。", "color: #b2e2f2; font-weight: bold;");
+        console.log("Mode: Draw One / Rule: King Only on Empty");
         isAutoFinishing = false;
         let d, t;
         let attempts = 0;
@@ -108,147 +113,128 @@
         return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
       }
 
-      /* --- [デバッグ出力：判定ロジック] 削除厳禁！ --- */
       function checkFoundationMove(card, fIdx) {
         const found = state.foundations[fIdx];
         if (found.length === 0) {
-          if (card.rank === 1 && card.suit === fIdx) return { ok: true };
-          return { ok: false, msg: "Aが必要です" };
+          return { ok: (card.rank === 1 && card.suit === fIdx) };
         }
         const top = found[found.length - 1];
-        if (card.suit === top.suit && card.rank === top.rank + 1) return { ok: true };
-        return { ok: false, msg: `山は ${top.rank}。次は ${top.rank + 1} が必要` };
+        return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
       }
 
       function canPlaceOnTableau(card, tIdx) {
         const dest = state.tableau[tIdx];
-        if (dest.length === 0) return { ok: true, type: "空きスペース" };
+        
+        // 【重要】Windows標準ルール：空き列にはキング(13)のみ
+        if (dest.length === 0) {
+            return { ok: (card.rank === 13), type: "Kのみ" };
+        }
+
         const top = dest[dest.length - 1];
         const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
         return match ? { ok: true, type: "連番" } : { ok: false };
       }
 
-      // --- [戦略的オート帰還：判定] ---
-      function isSafeToAutoMove(card) {
-        if (card.rank === 1) return true; 
-        const targetRank = card.rank - 1;
-        const otherColor = 1 - card.color;
-        let count = 0;
-        state.foundations.forEach((f, idx) => {
-            const fColor = (idx === 0 || idx === 3) ? 0 : 1;
-            if (fColor === otherColor) {
-                const top = f[f.length - 1];
-                if (top && top.rank >= targetRank) count++;
-            }
-        });
-        return count === 2; // 反対色のAが揃っていない限り、2は自動では飛ばない
-      }
-
       function triggerAutoFoundation(immediate = false) {
         if (isAutoFinishing) return;
-        
         const scanAndMove = () => {
           let moved = false;
-          // 場札チェック
+          // 場札から
           for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
-              if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
-                console.log(`%c[SmartAuto] 1秒のラグを経て ${getCid(card)} を飛ばしました`, "color: #b2e2f2;");
+              if (checkFoundationMove(card, card.suit).ok) {
+                // 安全策: 場にある逆色のランクより小さければ自動移動しない（詰み防止）
+                // ただしWindowsオリジナルは自動移動しないので、ここは「便利機能」として残すか、
+                // 厳密にするなら消すべきだが、今の時代はあったほうがいい
                 state.foundations[card.suit].push(col.pop());
                 if (col.length > 0) col[col.length - 1].isOpen = true;
                 moved = true; break;
               }
             }
           }
-          // 捨札チェック
+          // 捨て札から
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
-            if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
-              console.log(`%c[SmartAuto] 捨札から ${getCid(card)} を飛ばしました`, "color: #b2e2f2;");
+            if (checkFoundationMove(card, card.suit).ok) {
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
             }
           }
-
-          if (moved) {
-            render();
-            setTimeout(triggerAutoFoundation, 150, true); // 2枚目以降はサクサク飛ばす
-          } else {
-            checkVictoryCondition();
-          }
+          if (moved) { render(); setTimeout(triggerAutoFoundation, 100, true); }
+          else checkVictoryCondition();
         };
-
         if (immediate) scanAndMove();
-        else setTimeout(scanAndMove, INITIAL_AUTO_DELAY); // 最初は1秒待つ
+        else setTimeout(scanAndMove, INITIAL_AUTO_DELAY);
       }
 
-      /* --- [デバッグ出力：クリック処理] 削除厳禁！ --- */
       function handleSlotClick(type, idx, mode = "single") {
         if (isAutoFinishing) return;
         let sourceArray, card, cardIdx;
+        
+        // --- 捨て札クリック ---
         if (type === 'waste') {
             if (state.waste.length === 0) return;
             sourceArray = state.waste; cardIdx = sourceArray.length - 1; card = sourceArray[cardIdx];
-        } else {
+        } 
+        // --- 場札クリック ---
+        else {
             sourceArray = state.tableau[idx]; if (sourceArray.length === 0) return;
             cardIdx = sourceArray.findIndex(c => c.isOpen); card = sourceArray[cardIdx];
         }
 
-        const actionName = (mode === "single") ? "左クリック" : "右/Wクリック";
-        console.group(`[Action] ${actionName}: ${getCid(card)} (Rank:${card.rank})`);
-        
         const isTableauLast = (type === 'tableau' && sourceArray.indexOf(card) === sourceArray.length - 1);
-
+        
+        // 1. 組札への移動トライ
         if (type === 'waste' || isTableauLast) {
-            const resF = checkFoundationMove(card, card.suit);
-            if (resF.ok) {
-                console.log(`%c-> [Success] 山へ移動`, "color: #b2e2f2; font-weight: bold;");
+            if (checkFoundationMove(card, card.suit).ok) {
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                console.groupEnd(); render(); triggerAutoFoundation(); return;
+                render(); triggerAutoFoundation(); return;
             }
         }
+        
+        if (mode !== "single") return; // ダブルクリックならここまで
 
-        if (mode !== "single") { console.groupEnd(); return; }
-
+        // 2. 場札への移動トライ
         const run = sourceArray.slice(cardIdx);
         let bestTarget = -1;
+        
+        // 優先度A: カードのある列につなげる
         for (let i = 0; i < 7; i++) {
             if (type === 'tableau' && i === idx) continue;
             const resT = canPlaceOnTableau(run[0], i);
             if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
         }
+        // 優先度B: 空き列に移動する（Kのみ許可）
         if (bestTarget === -1) {
             for (let i = 0; i < 7; i++) {
                 if (type === 'tableau' && i === idx) continue;
                 const resT = canPlaceOnTableau(run[0], i);
-                if (resT.ok && resT.type === "空きスペース") { bestTarget = i; break; }
+                if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
             }
         }
 
         if (bestTarget !== -1) {
-            console.log(`%c-> [Success] 列-${bestTarget} へ移動`, "color: #f7c96b;");
             state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
             if (type === 'waste') state.waste.pop();
             else {
                 state.tableau[idx] = sourceArray.slice(0, cardIdx);
                 if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
             }
-            console.groupEnd(); render(); triggerAutoFoundation(); return;
+            render(); triggerAutoFoundation();
         }
-        console.log("-> [Fail] 移動先なし");
-        console.groupEnd();
       }
 
       function checkVictoryCondition() {
         const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
         if (total === 52) { document.getElementById("win-overlay").style.display = "flex"; return; }
+        
+        // 山札も捨て札もなく、場札がすべて表向きならオートクリア
         const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
         const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
         if (stockEmpty && allTableauOpen && !isAutoFinishing) {
-            console.log("%c[System] オートクリア！", "color: #b2e2f2; font-weight: bold;");
             isAutoFinishing = true;
             setTimeout(autoDissolve, 50);
         }
@@ -272,23 +258,29 @@
 
       function render() {
         if (!state) return;
-        console.log("[Render] 更新完了");
         document.querySelectorAll('.slot, .column').forEach(el => {
             el.innerHTML = "";
             const newEl = el.cloneNode(true);
             el.parentNode.replaceChild(newEl, el);
         });
 
+        // --- Stock (Draw One) ---
         const sEl = document.getElementById("stock");
         if (state.stock.length > 0) {
-          sEl.innerHTML = `<playing-card cid="back"></playing-card><div class="stock-count">のこり ${state.stock.length}枚</div>`;
+          sEl.innerHTML = `<playing-card cid="back"></playing-card>`;
         }
         sEl.onclick = () => {
           if (isAutoFinishing) return;
           if (state.stock.length === 0) {
-            state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
+            // 山札切れ：捨て札を戻す
+            state.stock = state.waste.reverse(); 
+            state.stock.forEach(c => c.isOpen = false); 
+            state.waste = [];
           } else {
-            const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
+            // 1枚めくり (Draw One)
+            const c = state.stock.pop(); 
+            c.isOpen = true; 
+            state.waste.push(c);
           }
           render(); triggerAutoFoundation();
         };
@@ -309,7 +301,8 @@
           col.forEach((card, rowIdx) => {
             const el = document.createElement("playing-card");
             el.setAttribute("cid", getCid(card));
-            el.style.top = `${rowIdx * 28}px`;
+            // 少し詰め気味に重ねる (Windows Classic Style)
+            el.style.top = `${rowIdx * 20}px`; 
             colEl.appendChild(el);
           });
           colEl.onclick = () => handleSlotClick('tableau', colIdx, "single");
