@@ -3,132 +3,242 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Klondike - Strategic Delay Edition</title>
+    <title>Klondike - Stable Click</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
-        --bg: #0c3b2e; --felt: #0f4a39; 
-        --accent: #b2e2f2;
+        --bg: #008000;
+        --accent: #ffffff;
         --ink: #f5f2ea;
       }
       * { box-sizing: border-box; }
       body {
-        margin: 0; font-family: sans-serif; color: var(--ink);
-        background: radial-gradient(1200px 600px at 20% 0%, #1a6b51 0%, var(--bg) 45%, #072a20 100%);
-        min-height: 100vh; overflow: hidden;
+        margin: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; color: var(--ink);
+        background: var(--bg);
+        min-height: 100vh; overflow: hidden; user-select: none;
       }
       header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; }
-      h1 { margin: 0; font-size: 20px; color: var(--accent); letter-spacing: 0.1em; text-shadow: 0 0 10px rgba(178,226,242,0.5); }
-      button { background: #f7c96b; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 0 #b38a3d; }
-      button:active { transform: translateY(2px); box-shadow: 0 2px 0 #b38a3d; }
-      .board { padding: 0 24px 40px; display: grid; gap: 30px; max-width: 900px; margin: 0 auto; }
-      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 12px; }
+      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; }
+      .controls { display: flex; gap: 12px; align-items: center; }
+      
+      .toggle-label { display: flex; align-items: center; cursor: pointer; color: white; font-size: 12px; gap: 5px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
+      .toggle-label input { cursor: pointer; }
+
+      button { background: #ece9d8; color: black; border: 1px solid #003c74; padding: 6px 12px; border-radius: 3px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+      button:hover { box-shadow: 0 0 0 1px #f5f2ea inset; }
+      button:active { transform: translateY(1px); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      
+      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 100px; text-align: right; }
+      
+      .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; }
+      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; }
       .slot, .column {
         position: relative; width: var(--card-w); min-height: var(--card-h);
-        border-radius: 8px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-        cursor: pointer;
+        border-radius: 4px; 
+        border: 2px solid rgba(255,255,255,0.2);
+        cursor: pointer; /* 列全体をクリック可能に */
+        transition: height 0.2s;
       }
-      .slot.empty::after { content: ""; position: absolute; inset: 10px; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; }
-      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); transition: all 0.2s ease-in-out; }
-      .stock-count { position: absolute; bottom: -24px; width: 100%; text-align: center; font-size: 12px; color: var(--accent); font-weight: bold; }
+      .slot:empty, .column:empty { border: 2px solid rgba(0,0,0,0.1); background: rgba(0,0,0,0.05); }
+
+      /* カードはクリックイベントを親に委譲するため、ポインターイベントは有効のままにする */
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); cursor: pointer; filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.6)); transition: top 0.1s; pointer-events: auto; }
+      .stock-count { display:none; }
       
       #win-overlay {
-        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
         z-index: 100; flex-direction: column; align-items: center; justify-content: center;
-        color: var(--accent); animation: fadeIn 0.8s forwards;
+        color: white; animation: fadeIn 0.5s forwards;
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      .win-msg { font-size: 42px; font-weight: bold; margin-bottom: 20px; text-align: center; line-height: 1.2; text-shadow: 0 0 20px var(--accent); }
+      .win-msg { font-size: 40px; margin-bottom: 20px; font-family: "Times New Roman", serif; }
+      
+      #stuck-warning {
+        position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+        background: rgba(255, 0, 0, 0.85); color: white; padding: 10px 20px;
+        border-radius: 20px; font-weight: bold; pointer-events: none;
+        opacity: 0; transition: opacity 0.3s; z-index: 50;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      }
     </style>
   </head>
   <body oncontextmenu="return false;">
     <div id="win-overlay">
-        <div class="win-msg">ゲームクリア！</div>
-        <button onclick="location.reload()">もう一度あそぶ</button>
+        <div class="win-msg">Congratulations</div>
+        <button onclick="location.reload()">Deal Again</button>
     </div>
-    <header><h1>KLONDIKE - DELAYED AUTO</h1><div class="controls"><button id="new-game">New Game</button></div></header>
+    
+    <div id="stuck-warning">⚠️ 手詰まりの可能性あり (Undo推奨)</div>
+
+    <header>
+      <h1>Solitaire</h1>
+      <div class="controls">
+        <span id="status-msg"></span>
+        <label class="toggle-label" title="自動判定＋デバッグログ出力">
+            <input type="checkbox" id="chk-autocheck"> 常時チェック
+        </label>
+        <button id="btn-undo" disabled>Undo (Ctrl+Z)</button>
+        <button id="btn-restart" disabled>Restart</button>
+        <button id="new-game">New Game (F2)</button>
+      </div>
+    </header>
     <main class="board">
       <section class="top-row">
-        <div id="stock" class="slot empty"></div><div id="waste" class="slot empty"></div>
+        <div id="stock" class="slot"></div><div id="waste" class="slot"></div>
         <div class="spacer"></div>
-        <div id="foundation-0" class="slot empty"></div><div id="foundation-1" class="slot empty"></div>
-        <div id="foundation-2" class="slot empty"></div><div id="foundation-3" class="slot empty"></div>
+        <div id="foundation-0" class="slot"></div><div id="foundation-1" class="slot"></div>
+        <div id="foundation-2" class="slot"></div><div id="foundation-3" class="slot"></div>
       </section>
       <section class="bottom-row">
-        <div id="tableau-0" class="column empty"></div><div id="tableau-1" class="column empty"></div>
-        <div id="tableau-2" class="column empty"></div><div id="tableau-3" class="column empty"></div>
-        <div id="tableau-4" class="column empty"></div><div id="tableau-5" class="column empty"></div>
-        <div id="tableau-6" class="column empty"></div>
+        <div id="tableau-0" class="column"></div><div id="tableau-1" class="column"></div>
+        <div id="tableau-2" class="column"></div><div id="tableau-3" class="column"></div>
+        <div id="tableau-4" class="column"></div><div id="tableau-5" class="column"></div>
+        <div id="tableau-6" class="column"></div>
       </section>
     </main>
 
     <script>
-      /* --- [デバッグ出力設定] 削除・変更厳禁！ --- */
+      /* --- [Core] Configuration --- */
       const SUITS = ["spades", "hearts", "diamonds", "clubs"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
-      const INITIAL_AUTO_DELAY = 1000; // Aなどが出るのを確認するためのタイムラグ (ms)
+      
       let state = null;
+      let initialState = null; 
+      let historyStack = [];
       let isAutoFinishing = false; 
 
-      function createCard(s, r) { return { suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false }; }
-
-      function shuffleDeck() {
-        const d = [];
-        for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push(createCard(s, r));
-        for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
-        return d;
-      }
-
-      function initState() {
-        /* --- [デバッグ出力：開始ログ] 削除厳禁！ --- */
-        console.clear();
-        console.log("%c[System] 新しいゲームを開始。1秒のタイムラグ設定を適用。", "color: #b2e2f2; font-weight: bold;");
-        isAutoFinishing = false;
-        let d, t;
-        let attempts = 0;
-        do {
-            d = shuffleDeck();
-            t = Array.from({ length: 7 }, () => []);
-            const tempDeck = [...d];
+      /* --- [Simulator] --- */
+      class Simulator {
+        constructor() {}
+        clone(s) { return JSON.parse(JSON.stringify(s)); }
+        
+        findSolvableDeck() {
+            let attempts = 0;
+            while (attempts < 500) {
+                const deck = this.createDeck();
+                const startState = this.deal(deck);
+                if (this.canSolve(this.clone(startState))) {
+                    console.log(`[System] Solvable deck found after ${attempts + 1} attempts.`);
+                    return startState;
+                }
+                attempts++;
+            }
+            return this.deal(this.createDeck());
+        }
+        checkCurrentState(currentState) {
+            for(let i=0; i<5; i++) {
+                if (this.canSolve(this.clone(currentState))) return true;
+            }
+            return false;
+        }
+        createDeck() {
+            const d = [];
+            for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s === 0 || s === 3) ? 0 : 1, isOpen: false });
+            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+            return d;
+        }
+        deal(d) {
+             let t = Array.from({ length: 7 }, () => []);
+             const tempDeck = [...d];
+             for (let i = 0; i < 7; i++) {
+                 for (let j = 0; j <= i; j++) {
+                     const c = tempDeck.pop(); c.isOpen = (j === i); t[i].push(c);
+                 }
+             }
+             return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
+        }
+        canSolve(simState) {
+            let moves = 0;
+            let noProgressLoop = 0;
+            const LIMIT = 1000;
+            while (moves < LIMIT && noProgressLoop < 50) {
+                let moved = false;
+                for (let i = 0; i < 7; i++) {
+                    const col = simState.tableau[i];
+                    if (col.length > 0) {
+                        const c = col[col.length - 1];
+                        if (this.checkF(simState, c, c.suit)) {
+                            simState.foundations[c.suit].push(col.pop());
+                            if (col.length > 0) col[col.length - 1].isOpen = true;
+                            moved = true; break;
+                        }
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                if (simState.waste.length > 0) {
+                    const c = simState.waste[simState.waste.length - 1];
+                    if (this.checkF(simState, c, c.suit)) {
+                        simState.foundations[c.suit].push(simState.waste.pop());
+                        moved = true;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                for (let i = 0; i < 7; i++) {
+                    const col = simState.tableau[i];
+                    if (col.length === 0) continue;
+                    let openIdx = -1;
+                    for(let k=0; k<col.length; k++) { if(col[k].isOpen) { openIdx=k; break; } }
+                    if (openIdx === -1) continue; 
+                    if (openIdx === 0 && col[openIdx].rank === 13) continue;
+                    const cardToMove = col[openIdx];
+                    const target = this.findTabTarget(simState, cardToMove, i);
+                    if (target !== -1) {
+                        const run = col.splice(openIdx);
+                        simState.tableau[target] = simState.tableau[target].concat(run);
+                        if (col.length > 0) col[col.length - 1].isOpen = true;
+                        moved = true; break;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                if (simState.waste.length > 0) {
+                    const c = simState.waste[simState.waste.length - 1];
+                    const target = this.findTabTarget(simState, c, -1);
+                    if (target !== -1) {
+                        simState.tableau[target].push(simState.waste.pop());
+                        moved = true;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                if (simState.stock.length > 0) {
+                    const c = simState.stock.pop(); c.isOpen = true;
+                    simState.waste.push(c); moved = true;
+                } else if (simState.stock.length === 0 && simState.waste.length > 0) {
+                    simState.stock = simState.waste.reverse();
+                    simState.stock.forEach(x => x.isOpen = false);
+                    simState.waste = []; moved = true;
+                }
+                if (moved) {
+                     moves++; 
+                     if (simState.stock.length === 0 && simState.waste.length === 0) noProgressLoop = 0;
+                     else noProgressLoop++;
+                } else break;
+            }
+            return simState.foundations.reduce((a, b) => a + b.length, 0) === 52;
+        }
+        checkF(s, card, fIdx) {
+            const f = s.foundations[fIdx];
+            if (f.length === 0) return card.rank === 1 && card.suit === fIdx;
+            const top = f[f.length - 1];
+            return card.suit === top.suit && card.rank === top.rank + 1;
+        }
+        findTabTarget(s, card, ignoreIdx) {
             for (let i = 0; i < 7; i++) {
-                for (let j = 0; j <= i; j++) {
-                    const c = tempDeck.pop(); c.isOpen = (j === i); t[i].push(c);
+                if (i === ignoreIdx) continue;
+                const dest = s.tableau[i];
+                if (dest.length === 0) { if (card.rank === 13) return i; } 
+                else {
+                    const top = dest[dest.length - 1];
+                    if (card.rank === top.rank - 1 && card.color !== top.color) return i;
                 }
             }
-            attempts++;
-            const hasAce = t.map(col => col[col.length-1]).some(c => c.rank === 1);
-            if (hasAce || attempts > 100) break;
-        } while (true);
-        return { stock: d.slice(0, 24), waste: [], foundations: [[],[],[],[]], tableau: t };
-      }
-
-      function getCid(card) {
-        if (!card || !card.isOpen) return "back"; 
-        return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
-      }
-
-      /* --- [デバッグ出力：判定ロジック] 削除厳禁！ --- */
-      function checkFoundationMove(card, fIdx) {
-        const found = state.foundations[fIdx];
-        if (found.length === 0) {
-          if (card.rank === 1 && card.suit === fIdx) return { ok: true };
-          return { ok: false, msg: "Aが必要です" };
+            return -1;
         }
-        const top = found[found.length - 1];
-        if (card.suit === top.suit && card.rank === top.rank + 1) return { ok: true };
-        return { ok: false, msg: `山は ${top.rank}。次は ${top.rank + 1} が必要` };
       }
+      const bot = new Simulator();
 
-      function canPlaceOnTableau(card, tIdx) {
-        const dest = state.tableau[tIdx];
-        if (dest.length === 0) return { ok: true, type: "空きスペース" };
-        const top = dest[dest.length - 1];
-        const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
-        return match ? { ok: true, type: "連番" } : { ok: false };
-      }
-
-      // --- [戦略的オート帰還：判定] ---
+      /* --- [Helper Functions] --- */
       function isSafeToAutoMove(card) {
         if (card.rank === 1) return true; 
         const targetRank = card.rank - 1;
@@ -141,105 +251,217 @@
                 if (top && top.rank >= targetRank) count++;
             }
         });
-        return count === 2; // 反対色のAが揃っていない限り、2は自動では飛ばない
+        return count === 2; 
+      }
+      function getCid(card) {
+        if (!card || !card.isOpen) return "back"; 
+        return `${RANKS[card.rank - 1]}-of-${SUITS[card.suit]}`;
+      }
+      function pushHistory() {
+        if (state) {
+            if (historyStack.length > 50) historyStack.shift(); 
+            historyStack.push(JSON.stringify(state));
+            updateButtons();
+        }
+      }
+      function popHistory() {
+        if (historyStack.length === 0) return;
+        state = JSON.parse(historyStack.pop());
+        render(); updateButtons(); performAutoCheck();
+      }
+      function updateButtons() { 
+        document.getElementById("btn-undo").disabled = (historyStack.length === 0);
+        document.getElementById("btn-restart").disabled = (initialState === null);
+      }
+      function showStatus(msg, color="#ffff00") {
+        const el = document.getElementById("status-msg");
+        el.textContent = msg; el.style.color = color;
+      }
+      function clearStatus() { document.getElementById("status-msg").textContent = ""; hideWarning(); }
+      function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
+      function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
+      
+      function checkFoundationMove(card, fIdx) {
+        const found = state.foundations[fIdx];
+        if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
+        const top = found[found.length - 1];
+        return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
+      }
+      function canPlaceOnTableau(card, tIdx) {
+        const dest = state.tableau[tIdx];
+        if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
+        const top = dest[dest.length - 1];
+        const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
+        return match ? { ok: true, type: "連番" } : { ok: false };
+      }
+
+      async function performAutoCheck() {
+        const isCheckEnabled = document.getElementById("chk-autocheck").checked;
+        if (!isCheckEnabled || isAutoFinishing || !state) { clearStatus(); return; }
+        showStatus("Chk...", "#ccc");
+        await new Promise(r => setTimeout(r, 20));
+        const isWinnable = bot.checkCurrentState(state);
+        
+        // --- Console Debug Log (Requested) ---
+        console.clear();
+        console.group("%c[DEBUG] Current State Check", "color: orange; font-weight: bold;");
+        console.log("Winnable:", isWinnable ? "YES" : "NO");
+        console.log("Stock:", JSON.parse(JSON.stringify(state.stock)));
+        console.log("Waste:", JSON.parse(JSON.stringify(state.waste)));
+        console.log("Tableau:", JSON.parse(JSON.stringify(state.tableau)));
+        console.log("Foundations:", JSON.parse(JSON.stringify(state.foundations)));
+        console.groupEnd();
+
+        if (isWinnable) { showStatus("OK", "#00ff00"); hideWarning(); }
+        else { showStatus("STUCK?", "#ff5555"); showWarning(); }
+      }
+
+      async function startNewGame() {
+        showStatus("Gen...");
+        const btnNew = document.getElementById("new-game");
+        btnNew.disabled = true;
+        await new Promise(r => setTimeout(r, 50)); 
+        const newState = bot.findSolvableDeck();
+        state = newState;
+        initialState = JSON.parse(JSON.stringify(newState));
+        historyStack = []; 
+        isAutoFinishing = false;
+        clearStatus();
+        btnNew.disabled = false;
+        render(); updateButtons();
+      }
+
+      function restartGame() {
+        if (!initialState) return;
+        if(confirm("最初からやり直しますか？")) {
+            state = JSON.parse(JSON.stringify(initialState));
+            historyStack = [];
+            isAutoFinishing = false;
+            clearStatus();
+            render();
+            updateButtons();
+        }
       }
 
       function triggerAutoFoundation(immediate = false) {
         if (isAutoFinishing) return;
-        
         const scanAndMove = () => {
           let moved = false;
-          // 場札チェック
           for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
               if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
-                console.log(`%c[SmartAuto] 1秒のラグを経て ${getCid(card)} を飛ばしました`, "color: #b2e2f2;");
                 state.foundations[card.suit].push(col.pop());
                 if (col.length > 0) col[col.length - 1].isOpen = true;
-                moved = true; break;
+                moved = true; break; 
               }
             }
           }
-          // 捨札チェック
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
             if (checkFoundationMove(card, card.suit).ok && isSafeToAutoMove(card)) {
-              console.log(`%c[SmartAuto] 捨札から ${getCid(card)} を飛ばしました`, "color: #b2e2f2;");
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
             }
           }
-
-          if (moved) {
-            render();
-            setTimeout(triggerAutoFoundation, 150, true); // 2枚目以降はサクサク飛ばす
+          if (moved) { 
+              render(); 
+              setTimeout(triggerAutoFoundation, 100, true); 
           } else {
-            checkVictoryCondition();
+              checkVictoryCondition();
+              performAutoCheck();
           }
         };
-
         if (immediate) scanAndMove();
-        else setTimeout(scanAndMove, INITIAL_AUTO_DELAY); // 最初は1秒待つ
+        else setTimeout(scanAndMove, 800);
       }
 
-      /* --- [デバッグ出力：クリック処理] 削除厳禁！ --- */
-      function handleSlotClick(type, idx, mode = "single") {
+      // --- [Simplified Click Handler] ---
+      // specificCardIdx: if provided (from data-idx), attempts to act on that specific card
+      function handleSlotClick(type, idx, mode = "single", specificCardIdx = -1) {
         if (isAutoFinishing) return;
-        let sourceArray, card, cardIdx;
+        
+        // Debug Log
+        if(document.getElementById("chk-autocheck").checked) {
+             console.log(`Click: Type=${type}, Col=${idx}, Mode=${mode}, CardIdx=${specificCardIdx}`);
+        }
+        
+        clearStatus();
+        let sourceArray, cardIdx;
+        
         if (type === 'waste') {
             if (state.waste.length === 0) return;
-            sourceArray = state.waste; cardIdx = sourceArray.length - 1; card = sourceArray[cardIdx];
+            sourceArray = state.waste; 
+            cardIdx = sourceArray.length - 1; // Waste is always top card
         } else {
-            sourceArray = state.tableau[idx]; if (sourceArray.length === 0) return;
-            cardIdx = sourceArray.findIndex(c => c.isOpen); card = sourceArray[cardIdx];
+            sourceArray = state.tableau[idx]; 
+            if (sourceArray.length === 0 && specificCardIdx === -1) return; // Clicking empty
+            
+            if (specificCardIdx !== -1) {
+                cardIdx = specificCardIdx;
+            } else {
+                // Fallback: click column background -> grab top card
+                cardIdx = sourceArray.length - 1;
+            }
+            
+            if (!sourceArray[cardIdx].isOpen) return; // Cannot grab closed card
         }
 
-        const actionName = (mode === "single") ? "左クリック" : "右/Wクリック";
-        console.group(`[Action] ${actionName}: ${getCid(card)} (Rank:${card.rank})`);
-        
-        const isTableauLast = (type === 'tableau' && sourceArray.indexOf(card) === sourceArray.length - 1);
+        const card = sourceArray[cardIdx];
+        const run = sourceArray.slice(cardIdx);
+        const isSingleCard = run.length === 1;
+        let moveSuccess = false;
 
-        if (type === 'waste' || isTableauLast) {
-            const resF = checkFoundationMove(card, card.suit);
-            if (resF.ok) {
-                console.log(`%c-> [Success] 山へ移動`, "color: #b2e2f2; font-weight: bold;");
+        // 1. Double Click -> Foundation
+        if (mode !== "single" && isSingleCard) {
+            if (checkFoundationMove(card, card.suit).ok) {
+                pushHistory();
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                console.groupEnd(); render(); triggerAutoFoundation(); return;
+                moveSuccess = true;
             }
         }
-
-        if (mode !== "single") { console.groupEnd(); return; }
-
-        const run = sourceArray.slice(cardIdx);
-        let bestTarget = -1;
-        for (let i = 0; i < 7; i++) {
-            if (type === 'tableau' && i === idx) continue;
-            const resT = canPlaceOnTableau(run[0], i);
-            if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
-        }
-        if (bestTarget === -1) {
+        
+        // 2. Single Click -> Try Tableau Move (Stack)
+        if (!moveSuccess) {
+            let bestTarget = -1;
             for (let i = 0; i < 7; i++) {
                 if (type === 'tableau' && i === idx) continue;
                 const resT = canPlaceOnTableau(run[0], i);
-                if (resT.ok && resT.type === "空きスペース") { bestTarget = i; break; }
+                if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
+            }
+            if (bestTarget === -1) {
+                for (let i = 0; i < 7; i++) {
+                    if (type === 'tableau' && i === idx) continue;
+                    const resT = canPlaceOnTableau(run[0], i);
+                    if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
+                }
+            }
+            if (bestTarget !== -1) {
+                pushHistory();
+                state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
+                if (type === 'waste') state.waste.pop();
+                else {
+                    state.tableau[idx] = sourceArray.slice(0, cardIdx);
+                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+                }
+                moveSuccess = true;
             }
         }
 
-        if (bestTarget !== -1) {
-            console.log(`%c-> [Success] 列-${bestTarget} へ移動`, "color: #f7c96b;");
-            state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
-            if (type === 'waste') state.waste.pop();
-            else {
-                state.tableau[idx] = sourceArray.slice(0, cardIdx);
-                if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+        // 3. Single Click -> Try Foundation (Last Resort)
+        // If stack move failed, AND it's a single card (bottom of stack), try moving UP
+        if (!moveSuccess && isSingleCard) {
+             if (checkFoundationMove(card, card.suit).ok) {
+                pushHistory();
+                state.foundations[card.suit].push(sourceArray.pop());
+                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                moveSuccess = true;
             }
-            console.groupEnd(); render(); triggerAutoFoundation(); return;
         }
-        console.log("-> [Fail] 移動先なし");
-        console.groupEnd();
+
+        if (moveSuccess) { render(); triggerAutoFoundation(); }
       }
 
       function checkVictoryCondition() {
@@ -248,9 +470,7 @@
         const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
         const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
         if (stockEmpty && allTableauOpen && !isAutoFinishing) {
-            console.log("%c[System] オートクリア！", "color: #b2e2f2; font-weight: bold;");
-            isAutoFinishing = true;
-            setTimeout(autoDissolve, 50);
+            isAutoFinishing = true; setTimeout(autoDissolve, 50);
         }
       }
 
@@ -272,25 +492,24 @@
 
       function render() {
         if (!state) return;
-        console.log("[Render] 更新完了");
         document.querySelectorAll('.slot, .column').forEach(el => {
             el.innerHTML = "";
             const newEl = el.cloneNode(true);
             el.parentNode.replaceChild(newEl, el);
         });
-
+        
         const sEl = document.getElementById("stock");
-        if (state.stock.length > 0) {
-          sEl.innerHTML = `<playing-card cid="back"></playing-card><div class="stock-count">のこり ${state.stock.length}枚</div>`;
-        }
+        if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back"></playing-card>`; }
         sEl.onclick = () => {
           if (isAutoFinishing) return;
+          clearStatus();
+          pushHistory();
           if (state.stock.length === 0) {
             state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
           } else {
             const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           }
-          render(); triggerAutoFoundation();
+          render(); triggerAutoFoundation(); performAutoCheck();
         };
 
         const wEl = document.getElementById("waste");
@@ -306,24 +525,55 @@
 
         state.tableau.forEach((col, colIdx) => {
           const colEl = document.getElementById(`tableau-${colIdx}`);
+          const stackHeight = 140 + (col.length > 0 ? (col.length - 1) * 20 : 0);
+          colEl.style.height = `${stackHeight}px`;
+
+          // --- Click delegation: use data-idx ---
           col.forEach((card, rowIdx) => {
             const el = document.createElement("playing-card");
             el.setAttribute("cid", getCid(card));
-            el.style.top = `${rowIdx * 28}px`;
+            el.style.top = `${rowIdx * 20}px`; 
+            el.dataset.idx = rowIdx; // Store index for delegation
             colEl.appendChild(el);
           });
-          colEl.onclick = () => handleSlotClick('tableau', colIdx, "single");
-          colEl.ondblclick = () => handleSlotClick('tableau', colIdx, "double");
-          colEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('tableau', colIdx, "right"); };
+          
+          // Column click handler (Delegation)
+          colEl.onclick = (e) => {
+              // Check if a card was clicked
+              const cardEl = e.target.closest('playing-card');
+              if (cardEl) {
+                  const idx = parseInt(cardEl.dataset.idx);
+                  handleSlotClick('tableau', colIdx, "single", idx);
+              } else {
+                  // Clicked empty space in column -> implies top card
+                  handleSlotClick('tableau', colIdx, "single", -1);
+              }
+          };
+          
+          colEl.ondblclick = (e) => {
+              const cardEl = e.target.closest('playing-card');
+              if (cardEl) {
+                  const idx = parseInt(cardEl.dataset.idx);
+                  handleSlotClick('tableau', colIdx, "double", idx);
+              }
+          };
         });
       }
+      
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); popHistory(); }
+        if (e.key === 'F2') { e.preventDefault(); startNewGame(); }
+      });
+      document.getElementById("btn-undo").onclick = popHistory;
+      document.getElementById("btn-restart").onclick = restartGame;
+      document.getElementById("new-game").onclick = startNewGame;
+      document.getElementById("chk-autocheck").onchange = () => { performAutoCheck(); };
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {
-          setTimeout(() => { state = initState(); render(); }, 300);
+          setTimeout(startNewGame, 300);
         });
       });
-      document.getElementById("new-game").onclick = () => { state = initState(); render(); };
     </script>
   </body>
 </html>

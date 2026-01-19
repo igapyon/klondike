@@ -5,7 +5,7 @@
 ### 1.1 Card オブジェクト
 * `suit`: 整数 (0: Spade, 1: Heart, 2: Diamond, 3: Club)
 * `rank`: 整数 (1: A, 2: 2, ..., 11: J, 12: Q, 13: K)
-* `color`: `suit % 2` の値 (0: Black, 1: Red)
+* `color`: Spade/Club は Black(0)、Heart/Diamond は Red(1)
 * `isOpen`: 真偽値 (表向きか裏向きか)
 
 ### 1.2 ボードの状態 (State)
@@ -23,6 +23,7 @@
     * 列 `i` (0〜6) に対して、`i + 1` 枚のカードを配る。
     * 各列の最後のカードのみ `isOpen = true` とし、他は `false`。
 3.  **Stock配分**: 残りのカードをすべて `Stock` に格納する (`isOpen = false`)。
+    * 初期場札の最上段に A が出るまで再シャッフルを試行する（上限あり）。
 
 ---
 
@@ -31,7 +32,7 @@
 ### 3.1 Tableau への移動 (場札間、または Waste/Foundation から)
 * **対象**: 移動元カード(群) `Src` を、移動先列 `Tableau[i]` の末尾に置く。
 * **条件**:
-    1.  `Tableau[i]` が空の場合: `Src[0].rank == 13` (K) であること。
+    1.  `Tableau[i]` が空の場合: 任意のカードを置ける。
     2.  `Tableau[i]` が空でない場合:
         * `Src[0].rank == Tableau[i].last.rank - 1`
         * `Src[0].color != Tableau[i].last.color`
@@ -50,7 +51,7 @@
 ## 4. アクション・ハンドラ (Action Handlers)
 
 ### 4.1 山札クリック (Draw)
-* `Stock` が空でない: `Stock` から1枚（または3枚）取り出し、`isOpen = true` にして `Waste` へプッシュ。
+* `Stock` が空でない: `Stock` から1枚取り出し、`isOpen = true` にして `Waste` へプッシュ。
 * `Stock` が空かつリサイクル可能: `Waste` の全カードを逆順にして `Stock` へ戻す (`isOpen = false`)。
 
 ### 4.2 カード移動後の自動処理 (Auto-Refresh)
@@ -59,6 +60,10 @@
 ### 4.3 自動完了 (Auto-Finish / シュババ)
 * 全 `Tableau` カードが `isOpen == true` であり、かつ `Stock` と `Waste` が空の場合、以下のループを許容する:
     * `Tableau` の末尾から `Foundations` へ移動可能なカードを順次転送する。
+
+### 4.4 遅延オート移動 (Smart Auto)
+* 操作後に `Foundations` へ移動可能なカードを探索し、遅延して自動移動する。
+* 自動移動は安全判定を満たす場合のみ実施する（A は即許可）。
 
 ---
 
