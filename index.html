@@ -20,9 +20,13 @@
         user-select: none; -webkit-user-select: none;
         touch-action: manipulation;
       }
-      header { padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; }
-      .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      header { padding: 15px 24px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; max-width: 900px; margin: 0 auto; }
+      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; }
+      .app-version { font-size: 12px; opacity: 0.8; }
+      .github-link { display: inline-flex; align-items: center; color: var(--accent); opacity: 0.9; }
+      .github-link:hover { opacity: 1; }
+      .github-link svg { width: 16px; height: 16px; display: block; }
+      .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
       
       .toggle-label { display: flex; align-items: center; cursor: pointer; color: white; font-size: 12px; gap: 5px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
       .toggle-label input { cursor: pointer; }
@@ -39,6 +43,8 @@
 
       @media (max-width: 800px) {
         :root { --card-w: 13vw; --card-h: 18.2vw; }
+        header { padding: 12px 10px; }
+        .controls { width: 100%; }
         .board { padding: 10px 10px; gap: 20px; }
         .top-row, .bottom-row { gap: 8px; }
       }
@@ -82,7 +88,15 @@
     <div id="stuck-warning">⚠️ Likely Stuck (Undo Recommended)</div>
 
     <header>
-      <h1>Klondike (Solitaire)</h1>
+      <h1>
+        Klondike (Solitaire)
+        <span id="app-version" class="app-version"></span>
+        <a class="github-link" href="https://github.com/igapyon/klondike/" aria-label="GitHub Repository" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+        </a>
+      </h1>
       <div class="controls">
         <span id="status-msg"></span>
         <label class="toggle-label" title="自動判定＋デバッグログ出力">
@@ -110,6 +124,7 @@
 
     <script>
       /* --- [Core] Configuration --- */
+      const APP_VERSION = "v20260121";
       // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
       const SUITS = ["spades", "hearts", "clubs", "diamonds"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
@@ -118,6 +133,8 @@
       let initialState = null; 
       let historyStack = [];
       let isAutoFinishing = false; 
+
+      document.getElementById("app-version").textContent = `v${APP_VERSION}`;
 
       /* --- [Simulator] --- */
       class Simulator {
