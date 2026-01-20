@@ -272,7 +272,7 @@
       
       function pushHistory() {
         if (state) {
-            if (historyStack.length > 50) historyStack.shift(); 
+            if (historyStack.length > 1000) historyStack.shift(); 
             historyStack.push(JSON.stringify(state));
             updateButtons();
         }
