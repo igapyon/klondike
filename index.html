@@ -124,7 +124,7 @@
 
     <script>
       /* --- [Core] Configuration --- */
-      const APP_VERSION = "v20260121";
+      const APP_VERSION = "v20260122";
       // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
       const SUITS = ["spades", "hearts", "clubs", "diamonds"];
       const RANKS = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"];
@@ -537,8 +537,19 @@
 
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${getCid(state.waste[state.waste.length-1])}"></playing-card>`;
-        wEl.onclick = () => handleSlotClick('waste', -1, "single");
-        wEl.ondblclick = () => handleSlotClick('waste', -1, "double");
+        let wasteClickTimer = null;
+        const clickDelayMs = 220;
+        wEl.onclick = () => {
+          if (wasteClickTimer) { clearTimeout(wasteClickTimer); }
+          wasteClickTimer = setTimeout(() => {
+            handleSlotClick('waste', -1, "single");
+            wasteClickTimer = null;
+          }, clickDelayMs);
+        };
+        wEl.ondblclick = () => {
+          if (wasteClickTimer) { clearTimeout(wasteClickTimer); wasteClickTimer = null; }
+          handleSlotClick('waste', -1, "double");
+        };
         wEl.oncontextmenu = (e) => { e.preventDefault(); handleSlotClick('waste', -1, "right"); };
 
         state.foundations.forEach((stack, i) => {
@@ -561,12 +572,18 @@
             colEl.appendChild(el);
           });
           
+          let tableauClickTimer = null;
           colEl.onclick = (e) => {
               const cardEl = e.target.closest('playing-card');
-              if (cardEl) handleSlotClick('tableau', colIdx, "single", parseInt(cardEl.dataset.idx));
-              else handleSlotClick('tableau', colIdx, "single", -1);
+              const idx = cardEl ? parseInt(cardEl.dataset.idx) : -1;
+              if (tableauClickTimer) { clearTimeout(tableauClickTimer); }
+              tableauClickTimer = setTimeout(() => {
+                handleSlotClick('tableau', colIdx, "single", idx);
+                tableauClickTimer = null;
+              }, clickDelayMs);
           };
           colEl.ondblclick = (e) => {
+              if (tableauClickTimer) { clearTimeout(tableauClickTimer); tableauClickTimer = null; }
               const cardEl = e.target.closest('playing-card');
               if (cardEl) handleSlotClick('tableau', colIdx, "double", parseInt(cardEl.dataset.idx));
           };
