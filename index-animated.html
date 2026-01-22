@@ -133,13 +133,13 @@
         RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
         CLICK_DELAY_MS: 120,
         ANIM_MS: { manual: 260, auto: 340, draw: 200 },
-        ANIM_SPEED_PX_PER_MS: { manual: 0.7, auto: 0.6, draw: 0.8 },
-        ANIM_GEARUP: { startAt: 3, step: 0.22, maxMultiplier: 2.4 },
+        ANIM_SPEED_PX_PER_MS: { manual: 0.7, auto: 0.8, draw: 0.8 },
+        ANIM_GEARUP: { startAt: 3, step: 0.5, maxMultiplier: 6.0 },
         ANIM_MIN_MS: 600,
         ANIM_MAX_MS: 2000,
         ANIM_EASE: "cubic-bezier(0.9, 0, 0.1, 1)",
         ANIM_STAGGER_MS: 0,
-        REVEAL_DELAY_MS: 180,
+        REVEAL_DELAY_MS: 0,
         ANIM_END_BUFFER_MS: 160,
         REVEAL_TO_MOVE_DELAY_MS: 0
       };
@@ -154,6 +154,7 @@
         isAnimating: false,
         animatingCount: 0,
         lastAnimationPromise: Promise.resolve(),
+        lastAnimationEndAt: 0,
         lastRevealPromise: Promise.resolve(),
         lastMove: null,
         autoChainCount: 0
@@ -370,11 +371,12 @@
           performAutoCheck();
         });
       }
-      function scheduleReveal(card, moveType, onDone) {
+      function scheduleReveal(card, moveType, onDone, endAt) {
         if (!card) { if (onDone) onDone(); return; }
         const key = getCardKey(card);
         const delayMs = Config.REVEAL_DELAY_MS;
-        State.lastRevealPromise = State.lastAnimationPromise.then(() => new Promise(resolve => {
+        const waitMs = Math.max(0, (endAt || performance.now()) - performance.now());
+        State.lastRevealPromise = new Promise(resolve => {
           setTimeout(() => {
             if (!card.isOpen) {
               card.isOpen = true;
@@ -388,8 +390,8 @@
             }
             if (onDone) setTimeout(onDone, Config.REVEAL_TO_MOVE_DELAY_MS);
             resolve();
-          }, delayMs);
-        }));
+          }, waitMs + delayMs);
+        });
       }
       function waitForAnimationsThen(callback) {
         State.lastAnimationPromise.then(callback);
@@ -520,8 +522,9 @@
               State.autoChainCount += 1;
               setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
-              const nextStep = () => waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
-              if (revealCard) scheduleReveal(revealCard, "auto", nextStep);
+              const endAt = State.lastAnimationEndAt;
+              const nextStep = () => { setTimeout(triggerAutoFoundation, 80, true); };
+              if (revealCard) scheduleReveal(revealCard, "auto", nextStep, endAt);
               else nextStep();
           } else {
               State.isAutoMoving = false;
@@ -631,8 +634,9 @@
             setLastMove("manual");
           }
           UI.render(State.current); 
+          const endAt = State.lastAnimationEndAt;
           const afterReveal = () => { triggerAutoFoundation(); requestAutoCheck(); };
-          if (revealCard) scheduleReveal(revealCard, "manual", afterReveal);
+          if (revealCard) scheduleReveal(revealCard, "manual", afterReveal, endAt);
           else waitForAnimationsThen(afterReveal);
         }
       }
@@ -674,7 +678,7 @@
           State.autoChainCount += 1;
           setLastMove("auto", { foundationIdx, prevFoundationCard });
           UI.render(State.current); 
-          waitForAnimationsThen(() => { setTimeout(autoDissolve, 80); });
+          setTimeout(autoDissolve, 80);
         } else { 
           State.isAutoMoving = false;
           State.autoChainCount = 0;
@@ -837,9 +841,10 @@
                   1 + (Math.max(0, State.autoChainCount - Config.ANIM_GEARUP.startAt) * Config.ANIM_GEARUP.step)
                 )
               : 1;
+            const minMs = lastMove.type === "auto" ? (Config.ANIM_MIN_MS / gearBoost) : Config.ANIM_MIN_MS;
             const durationMs = Math.min(
               Config.ANIM_MAX_MS,
-              Math.max(Config.ANIM_MIN_MS, distance / (speed * gearBoost))
+              Math.max(minMs, distance / (speed * gearBoost))
             );
             const delayMs = staggerMs ? (animIndex * staggerMs) : 0;
             maxEndMs = Math.max(maxEndMs, delayMs + durationMs);
@@ -861,6 +866,8 @@
           if (animatedEls.length > 0) {
             State.animatingCount += 1;
             State.isAnimating = true;
+            const endAt = performance.now() + maxEndMs + Config.ANIM_END_BUFFER_MS;
+            State.lastAnimationEndAt = endAt;
             const finishedPromise = new Promise(resolve => setTimeout(resolve, maxEndMs + Config.ANIM_END_BUFFER_MS));
             State.lastAnimationPromise = finishedPromise;
             finishedPromise.then(() => {
@@ -873,11 +880,13 @@
             State.isAnimating = State.animatingCount > 0;
             cleanupGhosts();
             State.lastAnimationPromise = Promise.resolve();
+            State.lastAnimationEndAt = performance.now();
           }
         } else {
           State.isAnimating = State.animatingCount > 0;
           cleanupGhosts();
           State.lastAnimationPromise = Promise.resolve();
+          State.lastAnimationEndAt = performance.now();
         }
         State.lastMove = null;
       }
