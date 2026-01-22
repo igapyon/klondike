@@ -524,7 +524,7 @@
               setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
               const endAt = State.lastAnimationEndAt;
-              const nextStep = () => { setTimeout(triggerAutoFoundation, 80, true); };
+              const nextStep = () => waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
               if (revealCard) scheduleReveal(revealCard, "auto", nextStep, endAt);
               else nextStep();
           } else {
@@ -679,7 +679,7 @@
           State.autoChainCount += 1;
           setLastMove("auto", { foundationIdx, prevFoundationCard });
           UI.render(State.current); 
-          setTimeout(autoDissolve, 80);
+          waitForAnimationsThen(() => { setTimeout(autoDissolve, 80); });
         } else { 
           State.isAutoMoving = false;
           State.autoChainCount = 0;
