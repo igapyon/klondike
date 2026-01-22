@@ -443,7 +443,7 @@
         for (let s = 0; s < 4; s++) {
           const col = [];
           for (let r = 13; r >= 1; r--) {
-            col.push({ suit: s, rank: r, color: (s % 2 === 0) ? 0 : 1, isOpen: true });
+            col.push({ suit: s, rank: r, color: (s % 2 === 0) ? 0 : 1, isOpen: r === 1 });
           }
           tableau[s] = col;
         }
