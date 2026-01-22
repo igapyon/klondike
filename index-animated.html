@@ -136,7 +136,10 @@
         ANIM_MIN_MS: 600,
         ANIM_MAX_MS: 2000,
         ANIM_EASE: "cubic-bezier(0.9, 0, 0.1, 1)",
-        ANIM_STAGGER_MS: 0
+        ANIM_STAGGER_MS: 0,
+        REVEAL_DELAY_MS: 180,
+        ANIM_END_BUFFER_MS: 160,
+        REVEAL_TO_MOVE_DELAY_MS: 0
       };
 
       /* --- [State] --- */
@@ -148,6 +151,7 @@
         isAutoMoving: false,
         isAnimating: false,
         animatingCount: 0,
+        lastAnimationPromise: Promise.resolve(),
         lastMove: null
       };
 
@@ -353,22 +357,28 @@
       function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
       function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
       function setLastMove(type, options = {}) { State.lastMove = { type, ...options }; }
-      function scheduleReveal(card, moveType) {
-        if (!card) return;
-        const delayMs = (Config.ANIM_MS[moveType] || Config.ANIM_MS.manual || 0) + 440;
-        setTimeout(() => {
-          if (card.isOpen) return;
-          card.isOpen = true;
-          setLastMove("manual", { animate: false });
-          UI.render(State.current);
-        }, delayMs);
+      function scheduleReveal(card, moveType, onDone) {
+        if (!card) { if (onDone) onDone(); return; }
+        const key = getCardKey(card);
+        const delayMs = Config.REVEAL_DELAY_MS;
+        State.lastAnimationPromise.then(() => {
+          setTimeout(() => {
+            if (!card.isOpen) {
+              card.isOpen = true;
+              const el = document.querySelector(`playing-card[data-key="${key}"]`);
+              if (el) {
+                el.setAttribute("cid", Rules.getCid(card));
+              } else {
+                setLastMove("manual", { animate: false });
+                UI.render(State.current);
+              }
+            }
+            if (onDone) setTimeout(onDone, Config.REVEAL_TO_MOVE_DELAY_MS);
+          }, delayMs);
+        });
       }
       function waitForAnimationsThen(callback) {
-        const poll = () => {
-          if (State.isAnimating) { setTimeout(poll, 40); return; }
-          callback();
-        };
-        poll();
+        State.lastAnimationPromise.then(callback);
       }
       
       async function performAutoCheck() {
@@ -465,8 +475,9 @@
               State.isAutoMoving = true;
               setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
-              if (revealCard) scheduleReveal(revealCard, "auto");
-              waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
+              const nextStep = () => waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
+              if (revealCard) scheduleReveal(revealCard, "auto", nextStep);
+              else nextStep();
           } else {
               State.isAutoMoving = false;
               checkVictoryCondition();
@@ -745,9 +756,9 @@
         };
         if (shouldAnimate) {
           const staggerMs = lastMove.type === "auto" ? Config.ANIM_STAGGER_MS : 0;
-          const animations = [];
           const animatedEls = [];
           let animIndex = 0;
+          let maxEndMs = 0;
           document.querySelectorAll('playing-card[data-key]').forEach(el => {
             const key = el.dataset.key;
             let fromRect = null;
@@ -770,25 +781,29 @@
               Config.ANIM_MAX_MS,
               Math.max(Config.ANIM_MIN_MS, distance / speed)
             );
-            const delay = staggerMs ? (animIndex * staggerMs) / 1000 : 0;
-            const anim = (typeof motionAnimate === "function")
-              ? motionAnimate(el, { transform: [`translate(${dx}px, ${dy}px)`, "translate(0px, 0px)"] }, {
-                  duration: durationMs / 1000,
-                  easing: Config.ANIM_EASE,
-                  delay
-                })
-              : el.animate(
-                  [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0px, 0px)" }],
-                  { duration: durationMs, easing: Config.ANIM_EASE, delay: delay * 1000, fill: "both" }
-                );
-            animations.push(anim);
+            const delayMs = staggerMs ? (animIndex * staggerMs) : 0;
+            maxEndMs = Math.max(maxEndMs, delayMs + durationMs);
+            if (typeof motionAnimate === "function") {
+              motionAnimate(el, { transform: [`translate(${dx}px, ${dy}px)`, "translate(0px, 0px)"] }, {
+                duration: durationMs / 1000,
+                easing: Config.ANIM_EASE,
+                delay: delayMs / 1000
+              });
+            } else {
+              el.animate(
+                [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0px, 0px)" }],
+                { duration: durationMs, easing: Config.ANIM_EASE, delay: delayMs, fill: "both" }
+              );
+            }
             animatedEls.push(el);
             animIndex++;
           });
-          if (animations.length > 0) {
+          if (animatedEls.length > 0) {
             State.animatingCount += 1;
             State.isAnimating = true;
-            Promise.all(animations.map(a => a.finished)).then(() => {
+            const finishedPromise = new Promise(resolve => setTimeout(resolve, maxEndMs + Config.ANIM_END_BUFFER_MS));
+            State.lastAnimationPromise = finishedPromise;
+            finishedPromise.then(() => {
               animatedEls.forEach(el => { el.style.willChange = ""; el.style.zIndex = ""; });
               State.animatingCount = Math.max(0, State.animatingCount - 1);
               State.isAnimating = State.animatingCount > 0;
@@ -797,10 +812,12 @@
           } else {
             State.isAnimating = State.animatingCount > 0;
             cleanupGhosts();
+            State.lastAnimationPromise = Promise.resolve();
           }
         } else {
           State.isAnimating = State.animatingCount > 0;
           cleanupGhosts();
+          State.lastAnimationPromise = Promise.resolve();
         }
         State.lastMove = null;
       }
