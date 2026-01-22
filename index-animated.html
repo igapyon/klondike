@@ -133,6 +133,7 @@
         CLICK_DELAY_MS: 120,
         ANIM_MS: { manual: 260, auto: 340, draw: 200 },
         ANIM_SPEED_PX_PER_MS: { manual: 0.7, auto: 0.6, draw: 0.8 },
+        ANIM_GEARUP: { step: 0.12, maxMultiplier: 1.7 },
         ANIM_MIN_MS: 600,
         ANIM_MAX_MS: 2000,
         ANIM_EASE: "cubic-bezier(0.9, 0, 0.1, 1)",
@@ -152,7 +153,9 @@
         isAnimating: false,
         animatingCount: 0,
         lastAnimationPromise: Promise.resolve(),
-        lastMove: null
+        lastRevealPromise: Promise.resolve(),
+        lastMove: null,
+        autoChainCount: 0
       };
 
       document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
@@ -341,8 +344,9 @@
         if (State.isAutoMoving || State.isAnimating) return;
         if (State.history.length === 0) return;
         State.current = JSON.parse(State.history.pop());
+        State.autoChainCount = 0;
         setLastMove("manual");
-        UI.render(State.current); updateButtons(); performAutoCheck();
+        UI.render(State.current); updateButtons(); requestAutoCheck();
       }
       
       function updateButtons() { 
@@ -357,11 +361,19 @@
       function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
       function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
       function setLastMove(type, options = {}) { State.lastMove = { type, ...options }; }
+      function requestAutoCheck() {
+        const isCheckEnabled = document.getElementById("chk-autocheck").checked;
+        if (!isCheckEnabled) return;
+        Promise.all([State.lastAnimationPromise, State.lastRevealPromise]).then(() => {
+          if (State.isAutoMoving || State.isAutoFinishing || State.isAnimating) return;
+          performAutoCheck();
+        });
+      }
       function scheduleReveal(card, moveType, onDone) {
         if (!card) { if (onDone) onDone(); return; }
         const key = getCardKey(card);
         const delayMs = Config.REVEAL_DELAY_MS;
-        State.lastAnimationPromise.then(() => {
+        State.lastRevealPromise = State.lastAnimationPromise.then(() => new Promise(resolve => {
           setTimeout(() => {
             if (!card.isOpen) {
               card.isOpen = true;
@@ -373,12 +385,10 @@
                 UI.render(State.current);
               }
             }
-            if (!State.isAutoMoving && !State.isAutoFinishing) {
-              performAutoCheck();
-            }
             if (onDone) setTimeout(onDone, Config.REVEAL_TO_MOVE_DELAY_MS);
+            resolve();
           }, delayMs);
-        });
+        }));
       }
       function waitForAnimationsThen(callback) {
         State.lastAnimationPromise.then(callback);
@@ -420,10 +430,11 @@
         State.history = []; 
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
+        State.autoChainCount = 0;
         clearStatus();
         btnNew.disabled = false;
         setLastMove("deal", { animate: false });
-        UI.render(State.current); updateButtons(); performAutoCheck(); // Init Check
+        UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
       }
 
       function restartGame() {
@@ -434,9 +445,10 @@
             State.history = [];
             State.isAutoFinishing = false;
             State.isAutoMoving = false;
+            State.autoChainCount = 0;
             clearStatus();
             setLastMove("deal", { animate: false });
-            UI.render(State.current); updateButtons(); performAutoCheck();
+            UI.render(State.current); updateButtons(); requestAutoCheck();
         }
       }
 
@@ -476,6 +488,7 @@
             }
           if (moved) { 
               State.isAutoMoving = true;
+              State.autoChainCount += 1;
               setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
               const nextStep = () => waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
@@ -483,8 +496,9 @@
               else nextStep();
           } else {
               State.isAutoMoving = false;
+              State.autoChainCount = 0;
               checkVictoryCondition();
-              performAutoCheck();
+              requestAutoCheck();
           }
         };
         if (immediate) scanAndMove();
@@ -498,10 +512,12 @@
         const state = State.current;
         if (state.stock.length === 0) {
           state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
+          State.autoChainCount = 0;
           setLastMove("manual", { animate: false });
         } else {
           const prevWasteTop = state.waste.length > 0 ? snapshotCard(state.waste[state.waste.length - 1]) : null;
           const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
+          State.autoChainCount = 0;
           setLastMove("draw", { cardKey: getCardKey(c), prevWasteCard: prevWasteTop });
         }
         UI.render(State.current); triggerAutoFoundation();
@@ -579,13 +595,14 @@
         }
 
         if (moveSuccess) { 
+          State.autoChainCount = 0;
           if (movedToFoundation) {
             setLastMove("manual", { foundationIdx, prevFoundationCard });
           } else {
             setLastMove("manual");
           }
           UI.render(State.current); 
-          const afterReveal = () => { triggerAutoFoundation(); performAutoCheck(); };
+          const afterReveal = () => { triggerAutoFoundation(); requestAutoCheck(); };
           if (revealCard) scheduleReveal(revealCard, "manual", afterReveal);
           else waitForAnimationsThen(afterReveal);
         }
@@ -625,11 +642,13 @@
             }
         }
         if (moved) { 
+          State.autoChainCount += 1;
           setLastMove("auto", { foundationIdx, prevFoundationCard });
           UI.render(State.current); 
           waitForAnimationsThen(() => { setTimeout(autoDissolve, 80); });
         } else { 
           State.isAutoMoving = false;
+          State.autoChainCount = 0;
           checkVictoryCondition(); 
         }
       }
@@ -641,6 +660,7 @@
         clearStatus,
         showWarning,
         hideWarning,
+        requestAutoCheck,
         performAutoCheck,
         startNewGame,
         restartGame,
@@ -781,9 +801,12 @@
             el.style.zIndex = "9999";
             const distance = Math.hypot(dx, dy);
             const speed = Config.ANIM_SPEED_PX_PER_MS[lastMove.type] || Config.ANIM_SPEED_PX_PER_MS.manual;
+            const gearBoost = lastMove.type === "auto"
+              ? Math.min(Config.ANIM_GEARUP.maxMultiplier, 1 + (State.autoChainCount * Config.ANIM_GEARUP.step))
+              : 1;
             const durationMs = Math.min(
               Config.ANIM_MAX_MS,
-              Math.max(Config.ANIM_MIN_MS, distance / speed)
+              Math.max(Config.ANIM_MIN_MS, distance / (speed * gearBoost))
             );
             const delayMs = staggerMs ? (animIndex * staggerMs) : 0;
             maxEndMs = Math.max(maxEndMs, delayMs + durationMs);
@@ -836,7 +859,7 @@
       document.getElementById("btn-undo").onclick = Controller.popHistory;
       document.getElementById("btn-restart").onclick = Controller.restartGame;
       document.getElementById("new-game").onclick = Controller.startNewGame;
-      document.getElementById("chk-autocheck").onchange = () => { Controller.performAutoCheck(); };
+      document.getElementById("chk-autocheck").onchange = () => { Controller.requestAutoCheck(); };
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {
