@@ -373,6 +373,9 @@
                 UI.render(State.current);
               }
             }
+            if (!State.isAutoMoving && !State.isAutoFinishing) {
+              performAutoCheck();
+            }
             if (onDone) setTimeout(onDone, Config.REVEAL_TO_MOVE_DELAY_MS);
           }, delayMs);
         });
@@ -501,7 +504,7 @@
           const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
           setLastMove("draw", { cardKey: getCardKey(c), prevWasteCard: prevWasteTop });
         }
-        UI.render(State.current); triggerAutoFoundation(); performAutoCheck();
+        UI.render(State.current); triggerAutoFoundation();
       }
 
       // --- [Event Delegation Click Handler] ---
@@ -582,8 +585,9 @@
             setLastMove("manual");
           }
           UI.render(State.current); 
-          if (revealCard) scheduleReveal(revealCard, "manual");
-          triggerAutoFoundation(); 
+          const afterReveal = () => { triggerAutoFoundation(); performAutoCheck(); };
+          if (revealCard) scheduleReveal(revealCard, "manual", afterReveal);
+          else waitForAnimationsThen(afterReveal);
         }
       }
 
