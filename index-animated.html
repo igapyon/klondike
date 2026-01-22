@@ -302,6 +302,10 @@
         return `${Config.RANKS[card.rank - 1]}-of-${Config.SUITS[card.suit]}`;
       }
       function getCardKey(card) { return `${card.suit}-${card.rank}`; }
+      function snapshotCard(card) {
+        if (!card) return null;
+        return { suit: card.suit, rank: card.rank, color: card.color, isOpen: card.isOpen };
+      }
       function checkFoundationMove(card, fIdx) {
         const found = State.current.foundations[fIdx];
         if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
@@ -450,8 +454,9 @@
           state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
           setLastMove("manual", { animate: false });
         } else {
+          const prevWasteTop = state.waste.length > 0 ? snapshotCard(state.waste[state.waste.length - 1]) : null;
           const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
-          setLastMove("draw", { cardKey: getCardKey(c) });
+          setLastMove("draw", { cardKey: getCardKey(c), prevWasteCard: prevWasteTop });
         }
         UI.render(State.current); triggerAutoFoundation(); performAutoCheck();
       }
@@ -601,7 +606,17 @@
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) {
           const card = state.waste[state.waste.length - 1];
-          wEl.innerHTML = `<playing-card cid="${Rules.getCid(card)}" data-key="${getCardKey(card)}"></playing-card>`;
+          if (State.lastMove && State.lastMove.type === "draw" && State.lastMove.prevWasteCard) {
+            const prev = State.lastMove.prevWasteCard;
+            const prevEl = document.createElement("playing-card");
+            prevEl.setAttribute("cid", Rules.getCid(prev));
+            prevEl.dataset.ghost = "waste";
+            wEl.appendChild(prevEl);
+          }
+          const topEl = document.createElement("playing-card");
+          topEl.setAttribute("cid", Rules.getCid(card));
+          topEl.dataset.key = getCardKey(card);
+          wEl.appendChild(topEl);
         }
         let wasteClickTimer = null;
         wEl.onclick = () => {
@@ -663,6 +678,9 @@
         const motionAnimate = (typeof motionRoot === "function" ? motionRoot : (motionRoot && motionRoot.animate)) || null;
         const waapiAvailable = !!(Element.prototype && Element.prototype.animate);
         const shouldAnimate = lastMove.animate !== false && (typeof motionAnimate === "function" || waapiAvailable);
+        const cleanupGhosts = () => {
+          document.querySelectorAll('[data-ghost="waste"]').forEach(el => el.remove());
+        };
         if (shouldAnimate) {
           const durationMs = Config.ANIM_MS[lastMove.type] || Config.ANIM_MS.manual;
           const staggerMs = lastMove.type === "auto" ? Config.ANIM_STAGGER_MS : 0;
@@ -706,12 +724,15 @@
               animatedEls.forEach(el => { el.style.willChange = ""; });
               State.animatingCount = Math.max(0, State.animatingCount - 1);
               State.isAnimating = State.animatingCount > 0;
+              cleanupGhosts();
             });
           } else {
             State.isAnimating = State.animatingCount > 0;
+            cleanupGhosts();
           }
         } else {
           State.isAnimating = State.animatingCount > 0;
+          cleanupGhosts();
         }
         State.lastMove = null;
       }
