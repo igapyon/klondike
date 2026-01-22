@@ -5,7 +5,7 @@ Play Klondike (Solitaire) in the browser — a static web app contained in a sin
 
 ![Screenshot](screenshot-20260121.png)
 
-Current Version: v20260122
+Current Version: v20260123
 
 ## 目的
 - 1ファイル（単一 HTML）完結の静的 Web アプリとして公開できる形にする。
