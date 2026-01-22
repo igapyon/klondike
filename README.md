@@ -5,7 +5,7 @@ Play Klondike (Solitaire) in the browser — a static web app contained in a sin
 
 ![Screenshot](screenshot-20260121.png)
 
-Current Version: v20260122
+Current Version: v20260123
 
 ## 目的
 - 1ファイル（単一 HTML）完結の静的 Web アプリとして公開できる形にする。
@@ -13,7 +13,7 @@ Current Version: v20260122
 
 ## 仕様メモ
 - ドローは 1 枚固定（Draw 1）。
-- 操作: 左クリックで場札移動（移動先が無い場合は組札へフォールバック）。長押し(350ms)で組札へ強制移動（場札トップ/捨て札トップ）。
+- 操作: 左クリックで場札移動（移動先が無い場合のみ組札へフォールバック）。長押し(350ms)で組札へ強制移動（場札トップ/捨て札トップ）。右クリックは山札の移動操作のみ。
 - オート移動は遅延付き（安全判定あり）。
 - 勝利時はオーバーレイで表示する。
 - Undo/Restart を実装済み（Ctrl/Cmd+Z、ボタンあり）。
