@@ -355,7 +355,7 @@
       function setLastMove(type, options = {}) { State.lastMove = { type, ...options }; }
       function scheduleReveal(card, moveType) {
         if (!card) return;
-        const delayMs = (Config.ANIM_MS[moveType] || Config.ANIM_MS.manual || 0) + 220;
+        const delayMs = (Config.ANIM_MS[moveType] || Config.ANIM_MS.manual || 0) + 440;
         setTimeout(() => {
           if (card.isOpen) return;
           card.isOpen = true;
