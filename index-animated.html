@@ -132,6 +132,9 @@
         RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
         CLICK_DELAY_MS: 120,
         ANIM_MS: { manual: 260, auto: 340, draw: 200 },
+        ANIM_SPEED_PX_PER_MS: { manual: 1.0, auto: 0.9, draw: 1.1 },
+        ANIM_MIN_MS: 420,
+        ANIM_MAX_MS: 1400,
         ANIM_EASE: "cubic-bezier(0.9, 0, 0.1, 1)",
         ANIM_STAGGER_MS: 30
       };
@@ -734,7 +737,6 @@
           document.querySelectorAll('[data-ghost="waste"], [data-ghost="foundation"]').forEach(el => el.remove());
         };
         if (shouldAnimate) {
-          const durationMs = Config.ANIM_MS[lastMove.type] || Config.ANIM_MS.manual;
           const staggerMs = lastMove.type === "auto" ? Config.ANIM_STAGGER_MS : 0;
           const animations = [];
           const animatedEls = [];
@@ -755,6 +757,12 @@
             el.style.transform = `translate(${dx}px, ${dy}px)`;
             el.style.willChange = "transform";
             el.style.zIndex = "9999";
+            const distance = Math.hypot(dx, dy);
+            const speed = Config.ANIM_SPEED_PX_PER_MS[lastMove.type] || Config.ANIM_SPEED_PX_PER_MS.manual;
+            const durationMs = Math.min(
+              Config.ANIM_MAX_MS,
+              Math.max(Config.ANIM_MIN_MS, distance / speed)
+            );
             const delay = staggerMs ? (animIndex * staggerMs) / 1000 : 0;
             const anim = (typeof motionAnimate === "function")
               ? motionAnimate(el, { transform: [`translate(${dx}px, ${dy}px)`, "translate(0px, 0px)"] }, {
