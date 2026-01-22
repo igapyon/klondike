@@ -702,6 +702,7 @@
             if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
             el.style.transform = `translate(${dx}px, ${dy}px)`;
             el.style.willChange = "transform";
+            el.style.zIndex = "9999";
             const delay = staggerMs ? (animIndex * staggerMs) / 1000 : 0;
             const anim = (typeof motionAnimate === "function")
               ? motionAnimate(el, { transform: [`translate(${dx}px, ${dy}px)`, "translate(0px, 0px)"] }, {
@@ -721,7 +722,7 @@
             State.animatingCount += 1;
             State.isAnimating = true;
             Promise.all(animations.map(a => a.finished)).then(() => {
-              animatedEls.forEach(el => { el.style.willChange = ""; });
+              animatedEls.forEach(el => { el.style.willChange = ""; el.style.zIndex = ""; });
               State.animatingCount = Math.max(0, State.animatingCount - 1);
               State.isAnimating = State.animatingCount > 0;
               cleanupGhosts();
