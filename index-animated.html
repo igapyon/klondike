@@ -584,8 +584,8 @@
         let foundationIdx = null;
         let movedToFoundation = false;
 
-        // 1. Double Click -> Foundation
-        if (mode !== "single" && isSingleCard) {
+        // 1. Long Press -> Foundation
+        if (mode === "long" && isSingleCard) {
             if (Rules.checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
                 const prev = state.foundations[card.suit];
@@ -748,10 +748,6 @@
             wasteClickTimer = null;
           }, Config.CLICK_DELAY_MS);
         };
-        wEl.ondblclick = () => {
-          if (wasteClickTimer) { clearTimeout(wasteClickTimer); wasteClickTimer = null; }
-          Controller.handleSlotClick('waste', -1, "double");
-        };
         wEl.oncontextmenu = (e) => { e.preventDefault(); Controller.handleSlotClick('waste', -1, "right"); };
 
         state.foundations.forEach((stack, i) => {
@@ -789,19 +785,44 @@
           });
           
           let tableauClickTimer = null;
+          let longPressTimer = null;
+          let longPressFired = false;
+          let longPressIdx = -1;
           colEl.onclick = (e) => {
               const cardEl = e.target.closest('playing-card');
               const idx = cardEl ? parseInt(cardEl.dataset.idx) : -1;
+              if (longPressFired && idx === longPressIdx) { 
+                longPressFired = false;
+                longPressIdx = -1;
+                return; 
+              }
               if (tableauClickTimer) { clearTimeout(tableauClickTimer); }
               tableauClickTimer = setTimeout(() => {
                 Controller.handleSlotClick('tableau', colIdx, "single", idx);
                 tableauClickTimer = null;
               }, Config.CLICK_DELAY_MS);
           };
-          colEl.ondblclick = (e) => {
-              if (tableauClickTimer) { clearTimeout(tableauClickTimer); tableauClickTimer = null; }
+          colEl.onpointerdown = (e) => {
               const cardEl = e.target.closest('playing-card');
-              if (cardEl) Controller.handleSlotClick('tableau', colIdx, "double", parseInt(cardEl.dataset.idx));
+              if (!cardEl) return;
+              const idx = parseInt(cardEl.dataset.idx);
+              if (idx !== col.length - 1) return;
+              longPressFired = false;
+              longPressIdx = idx;
+              if (longPressTimer) { clearTimeout(longPressTimer); }
+              longPressTimer = setTimeout(() => {
+                longPressFired = true;
+                Controller.handleSlotClick('tableau', colIdx, "long", idx);
+              }, 400);
+          };
+          colEl.onpointerup = () => {
+              if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          };
+          colEl.onpointerleave = () => {
+              if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          };
+          colEl.onpointercancel = () => {
+              if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
           };
         });
 
