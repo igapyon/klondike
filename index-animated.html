@@ -106,6 +106,7 @@
         <button id="btn-undo" disabled>Undo</button>
         <button id="btn-restart" disabled>Restart</button>
         <button id="new-game">New Game</button>
+        <button id="btn-test">Test</button>
       </div>
     </header>
     <main class="board">
@@ -133,7 +134,7 @@
         CLICK_DELAY_MS: 120,
         ANIM_MS: { manual: 260, auto: 340, draw: 200 },
         ANIM_SPEED_PX_PER_MS: { manual: 0.7, auto: 0.6, draw: 0.8 },
-        ANIM_GEARUP: { step: 0.12, maxMultiplier: 1.7 },
+        ANIM_GEARUP: { startAt: 3, step: 0.22, maxMultiplier: 2.4 },
         ANIM_MIN_MS: 600,
         ANIM_MAX_MS: 2000,
         ANIM_EASE: "cubic-bezier(0.9, 0, 0.1, 1)",
@@ -437,6 +438,34 @@
         UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
       }
 
+      function buildTestState() {
+        const tableau = Array.from({ length: 7 }, () => []);
+        for (let s = 0; s < 4; s++) {
+          const col = [];
+          for (let r = 13; r >= 1; r--) {
+            col.push({ suit: s, rank: r, color: (s % 2 === 0) ? 0 : 1, isOpen: true });
+          }
+          tableau[s] = col;
+        }
+        return { stock: [], waste: [], foundations: [[], [], [], []], tableau };
+      }
+
+      function startTestGame() {
+        if (State.isAutoMoving || State.isAnimating) return;
+        showStatus("Test...");
+        const testState = buildTestState();
+        State.current = testState;
+        State.initial = JSON.parse(JSON.stringify(testState));
+        State.history = [];
+        State.isAutoFinishing = false;
+        State.isAutoMoving = false;
+        State.autoChainCount = 0;
+        clearStatus();
+        setLastMove("deal", { animate: false });
+        UI.render(State.current); updateButtons(); requestAutoCheck();
+        checkVictoryCondition();
+      }
+
       function restartGame() {
         if (State.isAutoMoving || State.isAnimating) return;
         if (!State.initial) return;
@@ -663,6 +692,7 @@
         requestAutoCheck,
         performAutoCheck,
         startNewGame,
+        startTestGame,
         restartGame,
         triggerAutoFoundation,
         handleStockClick,
@@ -802,7 +832,10 @@
             const distance = Math.hypot(dx, dy);
             const speed = Config.ANIM_SPEED_PX_PER_MS[lastMove.type] || Config.ANIM_SPEED_PX_PER_MS.manual;
             const gearBoost = lastMove.type === "auto"
-              ? Math.min(Config.ANIM_GEARUP.maxMultiplier, 1 + (State.autoChainCount * Config.ANIM_GEARUP.step))
+              ? Math.min(
+                  Config.ANIM_GEARUP.maxMultiplier,
+                  1 + (Math.max(0, State.autoChainCount - Config.ANIM_GEARUP.startAt) * Config.ANIM_GEARUP.step)
+                )
               : 1;
             const durationMs = Math.min(
               Config.ANIM_MAX_MS,
@@ -859,6 +892,7 @@
       document.getElementById("btn-undo").onclick = Controller.popHistory;
       document.getElementById("btn-restart").onclick = Controller.restartGame;
       document.getElementById("new-game").onclick = Controller.startNewGame;
+      document.getElementById("btn-test").onclick = Controller.startTestGame;
       document.getElementById("chk-autocheck").onchange = () => { Controller.requestAutoCheck(); };
 
       window.addEventListener('load', () => {

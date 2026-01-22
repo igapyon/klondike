@@ -18,6 +18,7 @@ Current Version: v20260122
 - 勝利時はオーバーレイで表示する。
 - Undo/Restart を実装済み（Ctrl/Cmd+Z、ボタンあり）。
 - New Game ボタンで詰まりにくい初期配置を生成する。
+- `index-animated.html` には Test ボタンがあり、連鎖アニメ用のテストデッキを生成する。
 - 「Solvability Check」トグルで詰まり判定を行い、警告を表示する。
 - ヘッダーにバージョン表記と GitHub リンクを表示する。
 - 採用ライブラリ: CardMeister（Unlicense）。
