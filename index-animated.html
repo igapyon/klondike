@@ -813,7 +813,7 @@
               longPressTimer = setTimeout(() => {
                 longPressFired = true;
                 Controller.handleSlotClick('tableau', colIdx, "long", idx);
-              }, 400);
+              }, 350);
           };
           colEl.onpointerup = () => {
               if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
