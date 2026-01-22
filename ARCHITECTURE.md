@@ -25,10 +25,16 @@
 - Undo 用に履歴スタックを保持する。
 - Restart 用に初期状態を保持する。
 
+## 用語
+- Tableau: 場札。7列のカード配置で、プレイの主な操作対象。
+- Foundations: 組札。各スートごとの完成先。
+- Stock: 山札。ドロー元の未公開カードスタック。
+- Waste: 捨て札。Stock から引いたカードの置き場。
+
 ## UI 層
 - カード: CardMeister の `<playing-card>` を使用。
 - レイアウト: CSS で Tableau / Foundations / Stock / Waste を配置。
-- 入力: 左クリックで通常移動、ダブルクリックで組札移動を優先（右クリックは山札の移動操作のみ）。
+- 入力: 左クリックで通常移動、長押しで組札移動を優先（右クリックは山札の移動操作のみ）。
 - 勝利演出: オーバーレイを表示。
 - 補助UI: Undo/Restart/New Game/Solvability Check のコントロールを表示。
 - ヘッダー: バージョン表記と GitHub リンクを表示。
