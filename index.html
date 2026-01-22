@@ -129,7 +129,7 @@
         // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
         SUITS: ["spades", "hearts", "clubs", "diamonds"],
         RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
-        CLICK_DELAY_MS: 220
+        CLICK_DELAY_MS: 140
       };
 
       /* --- [State] --- */
@@ -320,7 +320,7 @@
       function popHistory() {
         if (State.history.length === 0) return;
         State.current = JSON.parse(State.history.pop());
-        UI.render(); updateButtons(); performAutoCheck();
+        UI.render(State.current); updateButtons(); performAutoCheck();
       }
       
       function updateButtons() { 
@@ -371,7 +371,7 @@
         State.isAutoFinishing = false;
         clearStatus();
         btnNew.disabled = false;
-        UI.render(); updateButtons(); performAutoCheck(); // Init Check
+        UI.render(State.current); updateButtons(); performAutoCheck(); // Init Check
       }
 
       function restartGame() {
@@ -381,7 +381,7 @@
             State.history = [];
             State.isAutoFinishing = false;
             clearStatus();
-            UI.render(); updateButtons(); performAutoCheck();
+            UI.render(State.current); updateButtons(); performAutoCheck();
         }
       }
 
@@ -409,7 +409,7 @@
             }
             }
           if (moved) { 
-              UI.render(); 
+              UI.render(State.current); 
               setTimeout(triggerAutoFoundation, 100, true); 
           } else {
               checkVictoryCondition();
@@ -430,7 +430,7 @@
         } else {
           const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
         }
-        UI.render(); triggerAutoFoundation(); performAutoCheck();
+        UI.render(State.current); triggerAutoFoundation(); performAutoCheck();
       }
 
       // --- [Event Delegation Click Handler] ---
@@ -494,17 +494,7 @@
             }
         }
 
-        // 3. Foundation Fallback
-        if (!moveSuccess && isSingleCard) {
-             if (Rules.checkFoundationMove(card, card.suit).ok) {
-                pushHistory();
-                state.foundations[card.suit].push(sourceArray.pop());
-                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                moveSuccess = true;
-            }
-        }
-
-        if (moveSuccess) { UI.render(); triggerAutoFoundation(); }
+        if (moveSuccess) { UI.render(State.current); triggerAutoFoundation(); }
       }
 
       function checkVictoryCondition() {
@@ -534,7 +524,7 @@
                 }
             }
         }
-        if (moved) { UI.render(); setTimeout(autoDissolve, 50); }
+        if (moved) { UI.render(State.current); setTimeout(autoDissolve, 50); }
         else { checkVictoryCondition(); }
       }
       const Controller = {
@@ -556,8 +546,7 @@
       };
 
       /* --- [UI] --- */
-      function render() {
-        const state = State.current;
+      function render(state) {
         if (!state) return;
         document.querySelectorAll('.slot, .column').forEach(el => {
             el.innerHTML = "";
