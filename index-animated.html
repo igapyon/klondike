@@ -583,6 +583,7 @@
         let prevFoundationCard = null;
         let foundationIdx = null;
         let movedToFoundation = false;
+        let hasTableauOption = false;
 
         // 1. Long Press -> Foundation
         if (mode === "long" && isSingleCard) {
@@ -613,6 +614,7 @@
                     if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
                 }
             }
+            if (bestTarget !== -1) hasTableauOption = true;
             if (bestTarget !== -1) {
                 pushHistory();
                 state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
@@ -623,6 +625,20 @@
                       revealCard = state.tableau[idx][state.tableau[idx].length - 1];
                     }
                 }
+                moveSuccess = true;
+            }
+        }
+
+        // 3. Single Click Fallback -> Foundation (only if no tableau option)
+        if (!moveSuccess && mode === "single" && isSingleCard && !hasTableauOption) {
+            if (Rules.checkFoundationMove(card, card.suit).ok) {
+                pushHistory();
+                const prev = state.foundations[card.suit];
+                prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
+                foundationIdx = card.suit;
+                state.foundations[card.suit].push(sourceArray.pop());
+                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                movedToFoundation = true;
                 moveSuccess = true;
             }
         }
@@ -741,7 +757,13 @@
           wEl.appendChild(topEl);
         }
         let wasteClickTimer = null;
+        let wasteLongPressTimer = null;
+        let wasteLongPressFired = false;
         wEl.onclick = () => {
+          if (wasteLongPressFired) { 
+            wasteLongPressFired = false;
+            return; 
+          }
           if (wasteClickTimer) { clearTimeout(wasteClickTimer); }
           wasteClickTimer = setTimeout(() => {
             Controller.handleSlotClick('waste', -1, "single");
@@ -749,6 +771,25 @@
           }, Config.CLICK_DELAY_MS);
         };
         wEl.oncontextmenu = (e) => { e.preventDefault(); Controller.handleSlotClick('waste', -1, "right"); };
+        wEl.onpointerdown = (e) => {
+          const cardEl = e.target.closest('playing-card');
+          if (!cardEl) return;
+          wasteLongPressFired = false;
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); }
+          wasteLongPressTimer = setTimeout(() => {
+            wasteLongPressFired = true;
+            Controller.handleSlotClick('waste', -1, "long");
+          }, 350);
+        };
+        wEl.onpointerup = () => {
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); wasteLongPressTimer = null; }
+        };
+        wEl.onpointerleave = () => {
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); wasteLongPressTimer = null; }
+        };
+        wEl.onpointercancel = () => {
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); wasteLongPressTimer = null; }
+        };
 
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
