@@ -136,7 +136,7 @@
         ANIM_MIN_MS: 600,
         ANIM_MAX_MS: 2000,
         ANIM_EASE: "cubic-bezier(0.9, 0, 0.1, 1)",
-        ANIM_STAGGER_MS: 30
+        ANIM_STAGGER_MS: 0
       };
 
       /* --- [State] --- */
@@ -363,6 +363,13 @@
           UI.render(State.current);
         }, delayMs);
       }
+      function waitForAnimationsThen(callback) {
+        const poll = () => {
+          if (State.isAnimating) { setTimeout(poll, 40); return; }
+          callback();
+        };
+        poll();
+      }
       
       async function performAutoCheck() {
         const isCheckEnabled = document.getElementById("chk-autocheck").checked;
@@ -459,7 +466,7 @@
               setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
               if (revealCard) scheduleReveal(revealCard, "auto");
-              setTimeout(triggerAutoFoundation, 100, true); 
+              waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
           } else {
               State.isAutoMoving = false;
               checkVictoryCondition();
@@ -605,7 +612,7 @@
         if (moved) { 
           setLastMove("auto", { foundationIdx, prevFoundationCard });
           UI.render(State.current); 
-          setTimeout(autoDissolve, 50); 
+          waitForAnimationsThen(() => { setTimeout(autoDissolve, 80); });
         } else { 
           State.isAutoMoving = false;
           checkVictoryCondition(); 
