@@ -350,6 +350,16 @@
       function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
       function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
       function setLastMove(type, options = {}) { State.lastMove = { type, ...options }; }
+      function scheduleReveal(card, moveType) {
+        if (!card) return;
+        const delayMs = (Config.ANIM_MS[moveType] || Config.ANIM_MS.manual || 0) + 220;
+        setTimeout(() => {
+          if (card.isOpen) return;
+          card.isOpen = true;
+          setLastMove("manual", { animate: false });
+          UI.render(State.current);
+        }, delayMs);
+      }
       
       async function performAutoCheck() {
         const isCheckEnabled = document.getElementById("chk-autocheck").checked;
@@ -412,13 +422,16 @@
         const scanAndMove = () => {
           const state = State.current;
           let moved = false;
+          let revealCard = null;
           for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
               if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
                 state.foundations[card.suit].push(col.pop());
-                if (col.length > 0) col[col.length - 1].isOpen = true;
+                if (col.length > 0 && !col[col.length - 1].isOpen) {
+                  revealCard = col[col.length - 1];
+                }
                 moved = true; break; 
               }
             }
@@ -433,7 +446,8 @@
           if (moved) { 
               State.isAutoMoving = true;
               setLastMove("auto");
-              UI.render(State.current); 
+              UI.render(State.current);
+              if (revealCard) scheduleReveal(revealCard, "auto");
               setTimeout(triggerAutoFoundation, 100, true); 
           } else {
               State.isAutoMoving = false;
@@ -484,6 +498,7 @@
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
         let moveSuccess = false;
+        let revealCard = null;
 
         // 1. Double Click -> Foundation
         if (mode !== "single" && isSingleCard) {
@@ -516,7 +531,9 @@
                 if (type === 'waste') state.waste.pop();
                 else {
                     state.tableau[idx] = sourceArray.slice(0, cardIdx);
-                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+                    if (state.tableau[idx].length > 0 && !state.tableau[idx][state.tableau[idx].length - 1].isOpen) {
+                      revealCard = state.tableau[idx][state.tableau[idx].length - 1];
+                    }
                 }
                 moveSuccess = true;
             }
@@ -525,6 +542,7 @@
         if (moveSuccess) { 
           setLastMove("manual");
           UI.render(State.current); 
+          if (revealCard) scheduleReveal(revealCard, "manual");
           triggerAutoFoundation(); 
         }
       }
