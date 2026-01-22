@@ -34,7 +34,7 @@
 ## UI 層
 - カード: CardMeister の `<playing-card>` を使用。
 - レイアウト: CSS で Tableau / Foundations / Stock / Waste を配置。
-- 入力: 左クリックで通常移動、長押しで組札移動を優先（右クリックは山札の移動操作のみ）。
+- 入力: 左クリックで通常移動、長押しで組札移動を優先（場札トップ/捨て札トップ）。右クリックは山札の移動操作のみ（Stock のみ）。
 - 勝利演出: オーバーレイを表示。
 - 補助UI: Undo/Restart/New Game/Solvability Check のコントロールを表示。
 - ヘッダー: バージョン表記と GitHub リンクを表示。
