@@ -420,6 +420,19 @@
         else setTimeout(scanAndMove, 800);
       }
 
+      function handleStockClick() {
+        if (State.isAutoFinishing) return;
+        clearStatus();
+        pushHistory();
+        const state = State.current;
+        if (state.stock.length === 0) {
+          state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
+        } else {
+          const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
+        }
+        UI.render(); triggerAutoFoundation(); performAutoCheck();
+      }
+
       // --- [Event Delegation Click Handler] ---
       function handleSlotClick(type, idx, mode = "single", specificCardIdx = -1) {
         if (State.isAutoFinishing) return;
@@ -536,6 +549,7 @@
         startNewGame,
         restartGame,
         triggerAutoFoundation,
+        handleStockClick,
         handleSlotClick,
         checkVictoryCondition,
         autoDissolve
@@ -553,17 +567,7 @@
         
         const sEl = document.getElementById("stock");
         if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back"></playing-card>`; }
-        sEl.onclick = () => {
-          if (State.isAutoFinishing) return;
-          Controller.clearStatus();
-          Controller.pushHistory();
-          if (state.stock.length === 0) {
-            state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
-          } else {
-            const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
-          }
-          UI.render(); Controller.triggerAutoFoundation(); Controller.performAutoCheck();
-        };
+        sEl.onclick = Controller.handleStockClick;
 
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${Rules.getCid(state.waste[state.waste.length-1])}"></playing-card>`;
