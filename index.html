@@ -457,8 +457,8 @@
         const isSingleCard = run.length === 1;
         let moveSuccess = false;
 
-        // 1. Double Click -> Foundation
-        if (mode !== "single" && isSingleCard) {
+        // 1. Long Press -> Foundation
+        if (mode === "long" && isSingleCard) {
             if (Rules.checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
                 state.foundations[card.suit].push(sourceArray.pop());
@@ -482,6 +482,7 @@
                     if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
                 }
             }
+            const hasTableauOption = (bestTarget !== -1);
             if (bestTarget !== -1) {
                 pushHistory();
                 state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
@@ -491,6 +492,14 @@
                     if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
                 }
                 moveSuccess = true;
+            }
+            if (!moveSuccess && mode === "single" && isSingleCard && !hasTableauOption) {
+                if (Rules.checkFoundationMove(card, card.suit).ok) {
+                    pushHistory();
+                    state.foundations[card.suit].push(sourceArray.pop());
+                    if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                    moveSuccess = true;
+                }
             }
         }
 
@@ -561,18 +570,39 @@
         const wEl = document.getElementById("waste");
         if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${Rules.getCid(state.waste[state.waste.length-1])}"></playing-card>`;
         let wasteClickTimer = null;
+        let wasteLongPressTimer = null;
+        let wasteLongPressFired = false;
         wEl.onclick = () => {
+          if (wasteLongPressFired) { 
+            wasteLongPressFired = false;
+            return; 
+          }
           if (wasteClickTimer) { clearTimeout(wasteClickTimer); }
           wasteClickTimer = setTimeout(() => {
             Controller.handleSlotClick('waste', -1, "single");
             wasteClickTimer = null;
           }, Config.CLICK_DELAY_MS);
         };
-        wEl.ondblclick = () => {
-          if (wasteClickTimer) { clearTimeout(wasteClickTimer); wasteClickTimer = null; }
-          Controller.handleSlotClick('waste', -1, "double");
-        };
         wEl.oncontextmenu = (e) => { e.preventDefault(); Controller.handleSlotClick('waste', -1, "right"); };
+        wEl.onpointerdown = (e) => {
+          const cardEl = e.target.closest('playing-card');
+          if (!cardEl) return;
+          wasteLongPressFired = false;
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); }
+          wasteLongPressTimer = setTimeout(() => {
+            wasteLongPressFired = true;
+            Controller.handleSlotClick('waste', -1, "long");
+          }, 350);
+        };
+        wEl.onpointerup = () => {
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); wasteLongPressTimer = null; }
+        };
+        wEl.onpointerleave = () => {
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); wasteLongPressTimer = null; }
+        };
+        wEl.onpointercancel = () => {
+          if (wasteLongPressTimer) { clearTimeout(wasteLongPressTimer); wasteLongPressTimer = null; }
+        };
 
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
@@ -595,19 +625,44 @@
           });
           
           let tableauClickTimer = null;
+          let longPressTimer = null;
+          let longPressFired = false;
+          let longPressIdx = -1;
           colEl.onclick = (e) => {
               const cardEl = e.target.closest('playing-card');
               const idx = cardEl ? parseInt(cardEl.dataset.idx) : -1;
+              if (longPressFired && idx === longPressIdx) { 
+                longPressFired = false;
+                longPressIdx = -1;
+                return; 
+              }
               if (tableauClickTimer) { clearTimeout(tableauClickTimer); }
               tableauClickTimer = setTimeout(() => {
                 Controller.handleSlotClick('tableau', colIdx, "single", idx);
                 tableauClickTimer = null;
               }, Config.CLICK_DELAY_MS);
           };
-          colEl.ondblclick = (e) => {
-              if (tableauClickTimer) { clearTimeout(tableauClickTimer); tableauClickTimer = null; }
+          colEl.onpointerdown = (e) => {
               const cardEl = e.target.closest('playing-card');
-              if (cardEl) Controller.handleSlotClick('tableau', colIdx, "double", parseInt(cardEl.dataset.idx));
+              if (!cardEl) return;
+              const idx = parseInt(cardEl.dataset.idx);
+              if (idx !== col.length - 1) return;
+              longPressFired = false;
+              longPressIdx = idx;
+              if (longPressTimer) { clearTimeout(longPressTimer); }
+              longPressTimer = setTimeout(() => {
+                longPressFired = true;
+                Controller.handleSlotClick('tableau', colIdx, "long", idx);
+              }, 350);
+          };
+          colEl.onpointerup = () => {
+              if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          };
+          colEl.onpointerleave = () => {
+              if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          };
+          colEl.onpointercancel = () => {
+              if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
           };
         });
       }
