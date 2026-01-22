@@ -423,11 +423,16 @@
           const state = State.current;
           let moved = false;
           let revealCard = null;
+          let prevFoundationCard = null;
+          let foundationIdx = null;
           for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
               if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
+                const prev = state.foundations[card.suit];
+                prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
+                foundationIdx = card.suit;
                 state.foundations[card.suit].push(col.pop());
                 if (col.length > 0 && !col[col.length - 1].isOpen) {
                   revealCard = col[col.length - 1];
@@ -439,13 +444,16 @@
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
             if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
+              const prev = state.foundations[card.suit];
+              prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
+              foundationIdx = card.suit;
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
             }
             }
           if (moved) { 
               State.isAutoMoving = true;
-              setLastMove("auto");
+              setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
               if (revealCard) scheduleReveal(revealCard, "auto");
               setTimeout(triggerAutoFoundation, 100, true); 
@@ -499,13 +507,20 @@
         const isSingleCard = run.length === 1;
         let moveSuccess = false;
         let revealCard = null;
+        let prevFoundationCard = null;
+        let foundationIdx = null;
+        let movedToFoundation = false;
 
         // 1. Double Click -> Foundation
         if (mode !== "single" && isSingleCard) {
             if (Rules.checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
+                const prev = state.foundations[card.suit];
+                prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
+                foundationIdx = card.suit;
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                movedToFoundation = true;
                 moveSuccess = true;
             }
         }
@@ -540,7 +555,11 @@
         }
 
         if (moveSuccess) { 
-          setLastMove("manual");
+          if (movedToFoundation) {
+            setLastMove("manual", { foundationIdx, prevFoundationCard });
+          } else {
+            setLastMove("manual");
+          }
           UI.render(State.current); 
           if (revealCard) scheduleReveal(revealCard, "manual");
           triggerAutoFoundation(); 
@@ -565,18 +584,23 @@
       function autoDissolve() {
         const state = State.current;
         let moved = false;
+        let prevFoundationCard = null;
+        let foundationIdx = null;
         for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
                 const c = col[col.length - 1];
                 if (Rules.checkFoundationMove(c, c.suit).ok) {
+                    const prev = state.foundations[c.suit];
+                    prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
+                    foundationIdx = c.suit;
                     state.foundations[c.suit].push(col.pop());
                     moved = true; break;
                 }
             }
         }
         if (moved) { 
-          setLastMove("auto");
+          setLastMove("auto", { foundationIdx, prevFoundationCard });
           UI.render(State.current); 
           setTimeout(autoDissolve, 50); 
         } else { 
@@ -654,7 +678,17 @@
           const el = document.getElementById(`foundation-${i}`);
           if (stack.length > 0) {
             const card = stack[stack.length - 1];
-            el.innerHTML = `<playing-card cid="${Rules.getCid(card)}" data-key="${getCardKey(card)}"></playing-card>`;
+            if (State.lastMove && State.lastMove.foundationIdx === i && State.lastMove.prevFoundationCard) {
+              const prev = State.lastMove.prevFoundationCard;
+              const prevEl = document.createElement("playing-card");
+              prevEl.setAttribute("cid", Rules.getCid(prev));
+              prevEl.dataset.ghost = "foundation";
+              el.appendChild(prevEl);
+            }
+            const topEl = document.createElement("playing-card");
+            topEl.setAttribute("cid", Rules.getCid(card));
+            topEl.dataset.key = getCardKey(card);
+            el.appendChild(topEl);
           }
         });
 
@@ -697,7 +731,7 @@
         const waapiAvailable = !!(Element.prototype && Element.prototype.animate);
         const shouldAnimate = lastMove.animate !== false && (typeof motionAnimate === "function" || waapiAvailable);
         const cleanupGhosts = () => {
-          document.querySelectorAll('[data-ghost="waste"]').forEach(el => el.remove());
+          document.querySelectorAll('[data-ghost="waste"], [data-ghost="foundation"]').forEach(el => el.remove());
         };
         if (shouldAnimate) {
           const durationMs = Config.ANIM_MS[lastMove.type] || Config.ANIM_MS.manual;
