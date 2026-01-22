@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Klondike (Solitaire)</title>
+    <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.min.js"></script>
+    <style>
+      :root {
+        --card-w: 100px; --card-h: 140px;
+        --bg: #008000;
+        --accent: #ffffff;
+        --ink: #f5f2ea;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; color: var(--ink);
+        background: var(--bg);
+        min-height: 100vh; overflow: hidden; 
+        user-select: none; -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+      header { padding: 15px 24px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; max-width: 900px; margin: 0 auto; }
+      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; }
+      .app-version { font-size: 12px; opacity: 0.8; }
+      .github-link { display: inline-flex; align-items: center; color: var(--accent); opacity: 0.9; }
+      .github-link:hover { opacity: 1; }
+      .github-link svg { width: 16px; height: 16px; display: block; }
+      .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+      
+      .toggle-label { display: flex; align-items: center; cursor: pointer; color: white; font-size: 12px; gap: 5px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
+      .toggle-label input { cursor: pointer; }
+
+      button { background: #ece9d8; color: black; border: 1px solid #003c74; padding: 6px 12px; border-radius: 3px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+      button:hover { box-shadow: 0 0 0 1px #f5f2ea inset; }
+      button:active { transform: translateY(1px); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      
+      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 80px; text-align: right; }
+      
+      .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; transition: gap 0.3s; }
+      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; justify-content: center; transition: gap 0.3s; }
+
+      @media (max-width: 800px) {
+        :root { --card-w: 13vw; --card-h: 18.2vw; }
+        header { padding: 12px 10px; }
+        .controls { width: 100%; }
+        .board { padding: 10px 10px; gap: 20px; }
+        .top-row, .bottom-row { gap: 8px; }
+      }
+
+      .slot, .column {
+        position: relative; width: var(--card-w); min-height: var(--card-h);
+        border-radius: 4px; 
+        border: 2px solid rgba(255,255,255,0.2);
+        cursor: pointer; 
+        transition: height 0.2s;
+      }
+      .slot:empty, .column:empty { border: 2px solid rgba(0,0,0,0.1); background: rgba(0,0,0,0.05); }
+
+      playing-card { position: absolute; width: var(--card-w); height: var(--card-h); cursor: pointer; filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.6)); transition: top 0.1s; pointer-events: auto; }
+      .stock-count { display:none; }
+      
+      #win-overlay {
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+        z-index: 100; flex-direction: column; align-items: center; justify-content: center;
+        color: white; animation: fadeIn 0.5s forwards;
+      }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .win-msg { font-size: 40px; margin-bottom: 20px; font-family: "Times New Roman", serif; }
+      
+      #stuck-warning {
+        position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
+        background: rgba(255, 0, 0, 0.85); color: white; padding: 10px 20px;
+        border-radius: 20px; font-weight: bold; pointer-events: none;
+        opacity: 0; transition: opacity 0.3s; z-index: 50;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 14px;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body oncontextmenu="return false;">
+    <div id="win-overlay">
+        <div class="win-msg">Congratulations</div>
+        <button onclick="location.reload()">Deal Again</button>
+    </div>
+    
+    <div id="stuck-warning">⚠️ Likely Stuck (Undo Recommended)</div>
+
+    <header>
+      <h1>
+        Klondike (Solitaire)
+        <span id="app-version" class="app-version"></span>
+        <a class="github-link" href="https://github.com/igapyon/klondike/" aria-label="GitHub Repository" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+        </a>
+      </h1>
+      <div class="controls">
+        <span id="status-msg"></span>
+        <label class="toggle-label" title="自動判定＋デバッグログ出力">
+            <input type="checkbox" id="chk-autocheck"> Solvability Check
+        </label>
+        <button id="btn-undo" disabled>Undo</button>
+        <button id="btn-restart" disabled>Restart</button>
+        <button id="new-game">New Game</button>
+      </div>
+    </header>
+    <main class="board">
+      <section class="top-row">
+        <div id="stock" class="slot"></div><div id="waste" class="slot"></div>
+        <div class="spacer"></div>
+        <div id="foundation-0" class="slot"></div><div id="foundation-1" class="slot"></div>
+        <div id="foundation-2" class="slot"></div><div id="foundation-3" class="slot"></div>
+      </section>
+      <section class="bottom-row">
+        <div id="tableau-0" class="column"></div><div id="tableau-1" class="column"></div>
+        <div id="tableau-2" class="column"></div><div id="tableau-3" class="column"></div>
+        <div id="tableau-4" class="column"></div><div id="tableau-5" class="column"></div>
+        <div id="tableau-6" class="column"></div>
+      </section>
+    </main>
+
+    <script>
+      /* --- [Config] --- */
+      const Config = {
+        APP_VERSION: "v20260122",
+        // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
+        SUITS: ["spades", "hearts", "clubs", "diamonds"],
+        RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
+        CLICK_DELAY_MS: 120,
+        ANIM_MS: { manual: 200, auto: 260, draw: 140 },
+        ANIM_EASE: "cubic-bezier(0.22, 1, 0.36, 1)",
+        ANIM_STAGGER_MS: 30
+      };
+
+      /* --- [State] --- */
+      const State = {
+        current: null,
+        initial: null,
+        history: [],
+        isAutoFinishing: false,
+        isAutoMoving: false,
+        isAnimating: false,
+        animatingCount: 0,
+        lastMove: null
+      };
+
+      document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
+
+      /* --- [Simulator] --- */
+      class Simulator {
+        constructor() {}
+        clone(s) { return JSON.parse(JSON.stringify(s)); }
+        
+        findSolvableDeck() {
+            let attempts = 0;
+            while (attempts < 500) {
+                const deck = this.createDeck();
+                const startState = this.deal(deck);
+                if (this.canSolve(this.clone(startState))) return startState;
+                attempts++;
+            }
+            return this.deal(this.createDeck());
+        }
+
+        checkCurrentState(currentState) {
+            for(let i=0; i<5; i++) {
+                if (this.canSolve(this.clone(currentState))) return true;
+            }
+            return false;
+        }
+
+        createDeck() {
+            const d = [];
+            // 【変更点2】 色の判定ロジックを変更。偶数(0,2)が黒、奇数(1,3)が赤
+            for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s % 2 === 0) ? 0 : 1, isOpen: false });
+            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+            return d;
+        }
+        deal(d) {
+             let t = Array.from({ length: 7 }, () => []);
+             const tempDeck = [...d];
+             for (let i = 0; i < 7; i++) {
+                 for (let j = 0; j <= i; j++) {
+                     const c = tempDeck.pop(); c.isOpen = (j === i); t[i].push(c);
+                 }
+             }
+             return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
+        }
+
+        canSolve(simState) {
+            let moves = 0;
+            let noProgressLoop = 0;
+            const LIMIT = 1000;
+            while (moves < LIMIT && noProgressLoop < 50) {
+                let moved = false;
+                for (let i = 0; i < 7; i++) {
+                    const col = simState.tableau[i];
+                    if (col.length > 0) {
+                        const c = col[col.length - 1];
+                        if (this.checkF(simState, c, c.suit)) {
+                            simState.foundations[c.suit].push(col.pop());
+                            if (col.length > 0) col[col.length - 1].isOpen = true;
+                            moved = true; break;
+                        }
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                if (simState.waste.length > 0) {
+                    const c = simState.waste[simState.waste.length - 1];
+                    if (this.checkF(simState, c, c.suit)) {
+                        simState.foundations[c.suit].push(simState.waste.pop());
+                        moved = true;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                for (let i = 0; i < 7; i++) {
+                    const col = simState.tableau[i];
+                    if (col.length === 0) continue;
+                    let openIdx = -1;
+                    for(let k=0; k<col.length; k++) { if(col[k].isOpen) { openIdx=k; break; } }
+                    if (openIdx === -1) continue; 
+                    if (openIdx === 0 && col[openIdx].rank === 13) continue;
+                    const cardToMove = col[openIdx];
+                    const target = this.findTabTarget(simState, cardToMove, i);
+                    if (target !== -1) {
+                        const run = col.splice(openIdx);
+                        simState.tableau[target] = simState.tableau[target].concat(run);
+                        if (col.length > 0) col[col.length - 1].isOpen = true;
+                        moved = true; break;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                if (simState.waste.length > 0) {
+                    const c = simState.waste[simState.waste.length - 1];
+                    const target = this.findTabTarget(simState, c, -1);
+                    if (target !== -1) {
+                        simState.tableau[target].push(simState.waste.pop());
+                        moved = true;
+                    }
+                }
+                if (moved) { moves++; noProgressLoop=0; continue; }
+                if (simState.stock.length > 0) {
+                    const c = simState.stock.pop(); c.isOpen = true;
+                    simState.waste.push(c); moved = true;
+                } else if (simState.stock.length === 0 && simState.waste.length > 0) {
+                    simState.stock = simState.waste.reverse();
+                    simState.stock.forEach(x => x.isOpen = false);
+                    simState.waste = []; moved = true;
+                }
+                if (moved) {
+                     moves++; 
+                     if (simState.stock.length === 0 && simState.waste.length === 0) noProgressLoop = 0;
+                     else noProgressLoop++;
+                } else break;
+            }
+            return simState.foundations.reduce((a, b) => a + b.length, 0) === 52;
+        }
+        checkF(s, card, fIdx) {
+            const f = s.foundations[fIdx];
+            if (f.length === 0) return card.rank === 1 && card.suit === fIdx;
+            const top = f[f.length - 1];
+            return card.suit === top.suit && card.rank === top.rank + 1;
+        }
+        findTabTarget(s, card, ignoreIdx) {
+            for (let i = 0; i < 7; i++) {
+                if (i === ignoreIdx) continue;
+                const dest = s.tableau[i];
+                if (dest.length === 0) { if (card.rank === 13) return i; } 
+                else {
+                    const top = dest[dest.length - 1];
+                    if (card.rank === top.rank - 1 && card.color !== top.color) return i;
+                }
+            }
+            return -1;
+        }
+      }
+      const bot = new Simulator();
+
+      /* --- [Rules] --- */
+      function isSafeToAutoMove(card) {
+        const state = State.current;
+        if (card.rank === 1) return true; 
+        const targetRank = card.rank - 1;
+        const otherColor = 1 - card.color;
+        let count = 0;
+        state.foundations.forEach((f, idx) => {
+            // 【変更点3】 色判定ロジックの修正 (0=S黒, 1=H赤, 2=C黒, 3=D赤)
+            const fColor = (idx % 2 === 0) ? 0 : 1;
+            if (fColor === otherColor) {
+                const top = f[f.length - 1];
+                if (top && top.rank >= targetRank) count++;
+            }
+        });
+        return count === 2; 
+      }
+      function getCid(card) {
+        if (!card || !card.isOpen) return "back"; 
+        return `${Config.RANKS[card.rank - 1]}-of-${Config.SUITS[card.suit]}`;
+      }
+      function getCardKey(card) { return `${card.suit}-${card.rank}`; }
+      function checkFoundationMove(card, fIdx) {
+        const found = State.current.foundations[fIdx];
+        if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
+        const top = found[found.length - 1];
+        return { ok: (card.suit === top.suit && card.rank === top.rank + 1) };
+      }
+      function canPlaceOnTableau(card, tIdx) {
+        const dest = State.current.tableau[tIdx];
+        if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
+        const top = dest[dest.length - 1];
+        const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
+        return match ? { ok: true, type: "連番" } : { ok: false };
+      }
+      const Rules = { isSafeToAutoMove, getCid, checkFoundationMove, canPlaceOnTableau };
+
+      /* --- [Controller] --- */
+      function pushHistory() {
+        if (State.current) {
+            if (State.history.length > 1000) State.history.shift(); 
+            State.history.push(JSON.stringify(State.current));
+            updateButtons();
+        }
+      }
+      
+      function popHistory() {
+        if (State.isAutoMoving || State.isAnimating) return;
+        if (State.history.length === 0) return;
+        State.current = JSON.parse(State.history.pop());
+        setLastMove("manual");
+        UI.render(State.current); updateButtons(); performAutoCheck();
+      }
+      
+      function updateButtons() { 
+        document.getElementById("btn-undo").disabled = (State.history.length === 0);
+        document.getElementById("btn-restart").disabled = (State.initial === null);
+      }
+      function showStatus(msg, color="#ffff00") {
+        const el = document.getElementById("status-msg");
+        el.textContent = msg; el.style.color = color;
+      }
+      function clearStatus() { document.getElementById("status-msg").textContent = ""; hideWarning(); }
+      function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
+      function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
+      function setLastMove(type, options = {}) { State.lastMove = { type, ...options }; }
+      
+      async function performAutoCheck() {
+        const isCheckEnabled = document.getElementById("chk-autocheck").checked;
+        if (!isCheckEnabled || State.isAutoFinishing || !State.current) { clearStatus(); return; }
+        
+        showStatus("Chk...", "#ccc");
+        await new Promise(r => setTimeout(r, 20));
+        
+        const isWinnable = bot.checkCurrentState(State.current);
+        
+        // --- Full Debug Log (Restored) ---
+        console.clear();
+        console.group("%c[DEBUG] Game Status", "color: orange; font-weight: bold; font-size: 12px;");
+        console.log(`%cWinnable: ${isWinnable ? "YES" : "NO"}`, isWinnable ? "color: green; font-weight:bold" : "color: red; font-weight:bold");
+        console.log("Stock:", JSON.parse(JSON.stringify(State.current.stock)));
+        console.log("Waste:", JSON.parse(JSON.stringify(State.current.waste)));
+        console.log("Tableau:", JSON.parse(JSON.stringify(State.current.tableau)));
+        console.log("Foundations:", JSON.parse(JSON.stringify(State.current.foundations)));
+        console.groupEnd();
+        // --------------------------------
+
+        if (isWinnable) { showStatus("OK", "#00ff00"); hideWarning(); }
+        else { showStatus("STUCK?", "#ff5555"); showWarning(); }
+      }
+
+      async function startNewGame() {
+        if (State.isAutoMoving || State.isAnimating) return;
+        showStatus("Gen...");
+        const btnNew = document.getElementById("new-game");
+        btnNew.disabled = true;
+        await new Promise(r => setTimeout(r, 50)); 
+        const newState = bot.findSolvableDeck();
+        State.current = newState;
+        State.initial = JSON.parse(JSON.stringify(newState));
+        State.history = []; 
+        State.isAutoFinishing = false;
+        State.isAutoMoving = false;
+        clearStatus();
+        btnNew.disabled = false;
+        setLastMove("deal", { animate: false });
+        UI.render(State.current); updateButtons(); performAutoCheck(); // Init Check
+      }
+
+      function restartGame() {
+        if (State.isAutoMoving || State.isAnimating) return;
+        if (!State.initial) return;
+        if(confirm("最初からやり直しますか？")) {
+            State.current = JSON.parse(JSON.stringify(State.initial));
+            State.history = [];
+            State.isAutoFinishing = false;
+            State.isAutoMoving = false;
+            clearStatus();
+            setLastMove("deal", { animate: false });
+            UI.render(State.current); updateButtons(); performAutoCheck();
+        }
+      }
+
+      function triggerAutoFoundation(immediate = false) {
+        if (State.isAutoFinishing) return;
+        const scanAndMove = () => {
+          const state = State.current;
+          let moved = false;
+          for (let i = 0; i < 7; i++) {
+            const col = state.tableau[i];
+            if (col.length > 0) {
+              const card = col[col.length - 1];
+              if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
+                state.foundations[card.suit].push(col.pop());
+                if (col.length > 0) col[col.length - 1].isOpen = true;
+                moved = true; break; 
+              }
+            }
+          }
+          if (!moved && state.waste.length > 0) {
+            const card = state.waste[state.waste.length - 1];
+            if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
+              state.foundations[card.suit].push(state.waste.pop());
+              moved = true;
+            }
+            }
+          if (moved) { 
+              State.isAutoMoving = true;
+              setLastMove("auto");
+              UI.render(State.current); 
+              setTimeout(triggerAutoFoundation, 100, true); 
+          } else {
+              State.isAutoMoving = false;
+              checkVictoryCondition();
+              performAutoCheck();
+          }
+        };
+        if (immediate) scanAndMove();
+        else setTimeout(scanAndMove, 800);
+      }
+
+      function handleStockClick() {
+        if (State.isAutoFinishing || State.isAutoMoving || State.isAnimating) return;
+        clearStatus();
+        pushHistory();
+        const state = State.current;
+        if (state.stock.length === 0) {
+          state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
+          setLastMove("manual", { animate: false });
+        } else {
+          const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
+          setLastMove("draw", { cardKey: getCardKey(c) });
+        }
+        UI.render(State.current); triggerAutoFoundation(); performAutoCheck();
+      }
+
+      // --- [Event Delegation Click Handler] ---
+      function handleSlotClick(type, idx, mode = "single", specificCardIdx = -1) {
+        if (State.isAutoFinishing || State.isAutoMoving || State.isAnimating) return;
+        clearStatus();
+        const state = State.current;
+        let sourceArray, cardIdx;
+        
+        if (type === 'waste') {
+            if (state.waste.length === 0) return;
+            sourceArray = state.waste; 
+            cardIdx = sourceArray.length - 1; 
+        } else {
+            sourceArray = state.tableau[idx]; 
+            if (sourceArray.length === 0 && specificCardIdx === -1) return;
+            if (specificCardIdx !== -1) cardIdx = specificCardIdx;
+            else cardIdx = sourceArray.length - 1;
+            if (!sourceArray[cardIdx].isOpen) return;
+        }
+
+        const card = sourceArray[cardIdx];
+        const run = sourceArray.slice(cardIdx);
+        const isSingleCard = run.length === 1;
+        let moveSuccess = false;
+
+        // 1. Double Click -> Foundation
+        if (mode !== "single" && isSingleCard) {
+            if (Rules.checkFoundationMove(card, card.suit).ok) {
+                pushHistory();
+                state.foundations[card.suit].push(sourceArray.pop());
+                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                moveSuccess = true;
+            }
+        }
+        
+        // 2. Single Click -> Tableau Move
+        if (!moveSuccess) {
+            let bestTarget = -1;
+            for (let i = 0; i < 7; i++) {
+                if (type === 'tableau' && i === idx) continue;
+                const resT = Rules.canPlaceOnTableau(run[0], i);
+                if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
+            }
+            if (bestTarget === -1) {
+                for (let i = 0; i < 7; i++) {
+                    if (type === 'tableau' && i === idx) continue;
+                    const resT = Rules.canPlaceOnTableau(run[0], i);
+                    if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
+                }
+            }
+            if (bestTarget !== -1) {
+                pushHistory();
+                state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
+                if (type === 'waste') state.waste.pop();
+                else {
+                    state.tableau[idx] = sourceArray.slice(0, cardIdx);
+                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
+                }
+                moveSuccess = true;
+            }
+        }
+
+        if (moveSuccess) { 
+          setLastMove("manual");
+          UI.render(State.current); 
+          triggerAutoFoundation(); 
+        }
+      }
+
+      function checkVictoryCondition() {
+        const state = State.current;
+        const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
+        if (total === 52) { 
+            State.isAutoMoving = false;
+            document.getElementById("win-overlay").style.display = "flex"; 
+            return; 
+        }
+        const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
+        const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
+        if (stockEmpty && allTableauOpen && !State.isAutoFinishing) {
+            State.isAutoFinishing = true; State.isAutoMoving = true; setTimeout(autoDissolve, 50);
+        }
+      }
+
+      function autoDissolve() {
+        const state = State.current;
+        let moved = false;
+        for (let i = 0; i < 7; i++) {
+            const col = state.tableau[i];
+            if (col.length > 0) {
+                const c = col[col.length - 1];
+                if (Rules.checkFoundationMove(c, c.suit).ok) {
+                    state.foundations[c.suit].push(col.pop());
+                    moved = true; break;
+                }
+            }
+        }
+        if (moved) { 
+          setLastMove("auto");
+          UI.render(State.current); 
+          setTimeout(autoDissolve, 50); 
+        } else { 
+          State.isAutoMoving = false;
+          checkVictoryCondition(); 
+        }
+      }
+      const Controller = {
+        pushHistory,
+        popHistory,
+        updateButtons,
+        showStatus,
+        clearStatus,
+        showWarning,
+        hideWarning,
+        performAutoCheck,
+        startNewGame,
+        restartGame,
+        triggerAutoFoundation,
+        handleStockClick,
+        handleSlotClick,
+        checkVictoryCondition,
+        autoDissolve
+      };
+
+      /* --- [UI] --- */
+      function render(state) {
+        if (!state) return;
+        const prevRects = new Map();
+        document.querySelectorAll('playing-card[data-key]').forEach(el => {
+          prevRects.set(el.dataset.key, el.getBoundingClientRect());
+        });
+        const stockRect = document.getElementById("stock")?.getBoundingClientRect();
+
+        document.querySelectorAll('.slot, .column').forEach(el => {
+            el.innerHTML = "";
+            const newEl = el.cloneNode(true);
+            el.parentNode.replaceChild(newEl, el);
+        });
+        
+        const sEl = document.getElementById("stock");
+        if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back" data-key="stock-back"></playing-card>`; }
+        sEl.onclick = Controller.handleStockClick;
+
+        const wEl = document.getElementById("waste");
+        if (state.waste.length > 0) {
+          const card = state.waste[state.waste.length - 1];
+          wEl.innerHTML = `<playing-card cid="${Rules.getCid(card)}" data-key="${getCardKey(card)}"></playing-card>`;
+        }
+        let wasteClickTimer = null;
+        wEl.onclick = () => {
+          if (wasteClickTimer) { clearTimeout(wasteClickTimer); }
+          wasteClickTimer = setTimeout(() => {
+            Controller.handleSlotClick('waste', -1, "single");
+            wasteClickTimer = null;
+          }, Config.CLICK_DELAY_MS);
+        };
+        wEl.ondblclick = () => {
+          if (wasteClickTimer) { clearTimeout(wasteClickTimer); wasteClickTimer = null; }
+          Controller.handleSlotClick('waste', -1, "double");
+        };
+        wEl.oncontextmenu = (e) => { e.preventDefault(); Controller.handleSlotClick('waste', -1, "right"); };
+
+        state.foundations.forEach((stack, i) => {
+          const el = document.getElementById(`foundation-${i}`);
+          if (stack.length > 0) {
+            const card = stack[stack.length - 1];
+            el.innerHTML = `<playing-card cid="${Rules.getCid(card)}" data-key="${getCardKey(card)}"></playing-card>`;
+          }
+        });
+
+        state.tableau.forEach((col, colIdx) => {
+          const colEl = document.getElementById(`tableau-${colIdx}`);
+          
+          const overlap = col.length > 15 ? 15 : 20; 
+          const stackHeight = 140 + (col.length > 0 ? (col.length - 1) * overlap : 0);
+          colEl.style.height = `${stackHeight}px`;
+
+          col.forEach((card, rowIdx) => {
+            const el = document.createElement("playing-card");
+            el.setAttribute("cid", Rules.getCid(card));
+            el.style.top = `${rowIdx * overlap}px`; 
+            el.dataset.idx = rowIdx;
+            el.dataset.key = getCardKey(card);
+            colEl.appendChild(el);
+          });
+          
+          let tableauClickTimer = null;
+          colEl.onclick = (e) => {
+              const cardEl = e.target.closest('playing-card');
+              const idx = cardEl ? parseInt(cardEl.dataset.idx) : -1;
+              if (tableauClickTimer) { clearTimeout(tableauClickTimer); }
+              tableauClickTimer = setTimeout(() => {
+                Controller.handleSlotClick('tableau', colIdx, "single", idx);
+                tableauClickTimer = null;
+              }, Config.CLICK_DELAY_MS);
+          };
+          colEl.ondblclick = (e) => {
+              if (tableauClickTimer) { clearTimeout(tableauClickTimer); tableauClickTimer = null; }
+              const cardEl = e.target.closest('playing-card');
+              if (cardEl) Controller.handleSlotClick('tableau', colIdx, "double", parseInt(cardEl.dataset.idx));
+          };
+        });
+
+        const lastMove = State.lastMove || {};
+        const motionRoot = window.motion;
+        const motionAnimate = (typeof motionRoot === "function" ? motionRoot : (motionRoot && motionRoot.animate)) || null;
+        const waapiAvailable = !!(Element.prototype && Element.prototype.animate);
+        const shouldAnimate = lastMove.animate !== false && (typeof motionAnimate === "function" || waapiAvailable);
+        if (shouldAnimate) {
+          const durationMs = Config.ANIM_MS[lastMove.type] || Config.ANIM_MS.manual;
+          const staggerMs = lastMove.type === "auto" ? Config.ANIM_STAGGER_MS : 0;
+          const animations = [];
+          const animatedEls = [];
+          let animIndex = 0;
+          document.querySelectorAll('playing-card[data-key]').forEach(el => {
+            const key = el.dataset.key;
+            let fromRect = null;
+            if (lastMove.type === "draw" && lastMove.cardKey === key && stockRect) {
+              fromRect = stockRect;
+            } else if (prevRects.has(key)) {
+              fromRect = prevRects.get(key);
+            }
+            if (!fromRect) return;
+            const toRect = el.getBoundingClientRect();
+            const dx = fromRect.left - toRect.left;
+            const dy = fromRect.top - toRect.top;
+            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+            el.style.willChange = "transform";
+            const delay = staggerMs ? (animIndex * staggerMs) / 1000 : 0;
+            const anim = (typeof motionAnimate === "function")
+              ? motionAnimate(el, { transform: [`translate(${dx}px, ${dy}px)`, "translate(0px, 0px)"] }, {
+                  duration: durationMs / 1000,
+                  easing: Config.ANIM_EASE,
+                  delay
+                })
+              : el.animate(
+                  [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0px, 0px)" }],
+                  { duration: durationMs, easing: Config.ANIM_EASE, delay: delay * 1000, fill: "both" }
+                );
+            animations.push(anim);
+            animatedEls.push(el);
+            animIndex++;
+          });
+          if (animations.length > 0) {
+            State.animatingCount += 1;
+            State.isAnimating = true;
+            Promise.all(animations.map(a => a.finished)).then(() => {
+              animatedEls.forEach(el => { el.style.willChange = ""; });
+              State.animatingCount = Math.max(0, State.animatingCount - 1);
+              State.isAnimating = State.animatingCount > 0;
+            });
+          } else {
+            State.isAnimating = State.animatingCount > 0;
+          }
+        } else {
+          State.isAnimating = State.animatingCount > 0;
+        }
+        State.lastMove = null;
+      }
+      const UI = { render };
+      
+      /* --- [Events] --- */
+      document.addEventListener('keydown', (e) => {
+        if (State.isAutoMoving || State.isAnimating) return;
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); Controller.popHistory(); }
+        if (e.key === 'F2') { e.preventDefault(); Controller.startNewGame(); }
+      });
+      document.getElementById("btn-undo").onclick = Controller.popHistory;
+      document.getElementById("btn-restart").onclick = Controller.restartGame;
+      document.getElementById("new-game").onclick = Controller.startNewGame;
+      document.getElementById("chk-autocheck").onchange = () => { Controller.performAutoCheck(); };
+
+      window.addEventListener('load', () => {
+        customElements.whenDefined('playing-card').then(() => {
+          setTimeout(Controller.startNewGame, 300);
+        });
+      });
+    </script>
+  </body>
+</html>
