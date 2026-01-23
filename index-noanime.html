@@ -106,7 +106,7 @@
       <div class="controls">
         <span id="status-msg"></span>
         <label class="toggle-label" title="自動判定＋デバッグログ出力">
-            <input type="checkbox" id="chk-autocheck"> Solvability Check
+            <input type="checkbox" id="chk-autocheck" checked> Solvability Check
         </label>
         <button id="btn-undo" disabled>Undo</button>
         <button id="btn-restart" disabled>Restart</button>
@@ -131,11 +131,15 @@
     <script>
       /* --- [Config] --- */
       const Config = {
-        APP_VERSION: "v20260123",
+        APP_VERSION: "v20260124",
         // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
         SUITS: ["spades", "hearts", "clubs", "diamonds"],
         RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
-        CLICK_DELAY_MS: 120
+        CLICK_DELAY_MS: 120,
+        SOLVER_LIMIT_DEAL: 1000,
+        SOLVER_STALL_DEAL: 12,
+        SOLVER_LIMIT_CHECK: 1000,
+        SOLVER_STALL_CHECK: 200
       };
 
       /* --- [State] --- */
@@ -158,7 +162,7 @@
             while (attempts < 500) {
                 const deck = this.createDeck();
                 const startState = this.deal(deck);
-                if (this.canSolve(this.clone(startState))) return startState;
+                if (this.canSolve(this.clone(startState), { limit: Config.SOLVER_LIMIT_DEAL, noProgressLimit: Config.SOLVER_STALL_DEAL })) return startState;
                 attempts++;
             }
             return this.deal(this.createDeck());
@@ -166,7 +170,7 @@
 
         checkCurrentState(currentState) {
             for(let i=0; i<13; i++) {
-                if (this.canSolve(this.clone(currentState))) return true;
+                if (this.canSolve(this.clone(currentState), { limit: Config.SOLVER_LIMIT_CHECK, noProgressLimit: Config.SOLVER_STALL_CHECK })) return true;
             }
             return false;
         }
@@ -189,11 +193,12 @@
              return { stock: tempDeck, waste: [], foundations: [[],[],[],[]], tableau: t };
         }
 
-        canSolve(simState) {
+        canSolve(simState, opts = {}) {
             let moves = 0;
             let noProgressLoop = 0;
-            const LIMIT = 1000;
-            while (moves < LIMIT && noProgressLoop < 200) {
+            const limit = (opts.limit ?? Config.SOLVER_LIMIT_CHECK);
+            const noProgressLimit = (opts.noProgressLimit ?? Config.SOLVER_STALL_CHECK);
+            while (moves < limit && noProgressLoop < noProgressLimit) {
                 let moved = false;
                 for (let i = 0; i < 7; i++) {
                     const col = simState.tableau[i];
