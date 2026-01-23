@@ -67,6 +67,10 @@
 * 自動移動は安全判定を満たす場合のみ実施する（A は即許可）。
     * 安全判定: 対象カードの一つ下のランクが、反対色の基礎山で両方とも成立済みであること。
 
+### 4.5 ヒント (Hint)
+* 簡易ソルバと同じ優先順位で次の一手を探索し、1回だけ自動実行する。
+* 優先順: Tableau→Foundation, Waste→Foundation, Tableau→Tableau, Waste→Tableau, Draw/Recycle。
+
 ---
 
 ## 5. 終了判定

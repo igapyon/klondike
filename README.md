@@ -5,7 +5,7 @@ Play Klondike (Solitaire) in the browser — a static web app contained in a sin
 
 ![Screenshot](screenshot-20260121.png)
 
-Current Version: v20260123
+Current Version: v20260124
 
 ## 目的
 - 1ファイル（単一 HTML）完結の静的 Web アプリとして公開できる形にする。
@@ -21,6 +21,7 @@ Current Version: v20260123
 - `index.html` はアニメ版で Test ボタンがあり、連鎖アニメ用のテストデッキを生成する。
 - `index-noanime.html` は非アニメ版。
 - 「Solvability Check」トグルで詰まり判定を行い、警告を表示する。
+- Hint ボタンで簡易ソルバの次の一手を 1 回だけ自動実行する。
 - ヘッダーにバージョン表記と GitHub リンクを表示する。
 - 採用ライブラリ: CardMeister（Unlicense）、Motion One（MIT, アニメ版のみ）。
 - デバッグログは当面残す。
