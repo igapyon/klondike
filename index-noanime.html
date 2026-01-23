@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Klondike (Solitaire)</title>
     <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.min.js"></script>
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
@@ -113,7 +112,6 @@
         <button id="btn-restart" disabled>Restart</button>
         <button id="btn-hint">Hint</button>
         <button id="new-game">New Game</button>
-        <button id="btn-test">Test</button>
       </div>
     </header>
     <main class="board">
@@ -142,18 +140,7 @@
         SOLVER_LIMIT_DEAL: 1000,
         SOLVER_STALL_DEAL: 13,
         SOLVER_LIMIT_CHECK: 1000,
-        SOLVER_STALL_CHECK: 200,
-        ANIM_MS: { manual: 260, auto: 340, draw: 200 },
-        ANIM_SPEED_PX_PER_MS: { manual: 0.7, auto: 0.8, draw: 0.8 },
-        ANIM_GEARUP: { startAt: 3, step: 0.5, maxMultiplier: 6.0 },
-        ANIM_MIN_MS: 600,
-        ANIM_MAX_MS: 2000,
-        ANIM_EASE_MANUAL: "cubic-bezier(0.45, 0.85, 0.3, 1)",
-        ANIM_EASE_AUTO: "cubic-bezier(0.9, 0, 0.1, 1)",
-        ANIM_STAGGER_MS: 0,
-        REVEAL_DELAY_MS: 0,
-        ANIM_END_BUFFER_MS: 160,
-        REVEAL_TO_MOVE_DELAY_MS: 0
+        SOLVER_STALL_CHECK: 200
       };
 
       /* --- [State] --- */
@@ -161,15 +148,7 @@
         current: null,
         initial: null,
         history: [],
-        isAutoFinishing: false,
-        isAutoMoving: false,
-        isAnimating: false,
-        animatingCount: 0,
-        lastAnimationPromise: Promise.resolve(),
-        lastAnimationEndAt: 0,
-        lastRevealPromise: Promise.resolve(),
-        lastMove: null,
-        autoChainCount: 0
+        isAutoFinishing: false
       };
 
       document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
@@ -366,11 +345,6 @@
         if (!card || !card.isOpen) return "back"; 
         return `${Config.RANKS[card.rank - 1]}-of-${Config.SUITS[card.suit]}`;
       }
-      function getCardKey(card) { return `${card.suit}-${card.rank}`; }
-      function snapshotCard(card) {
-        if (!card) return null;
-        return { suit: card.suit, rank: card.rank, color: card.color, isOpen: card.isOpen };
-      }
       function checkFoundationMove(card, fIdx) {
         const found = State.current.foundations[fIdx];
         if (found.length === 0) return { ok: (card.rank === 1 && card.suit === fIdx) };
@@ -396,12 +370,9 @@
       }
       
       function popHistory() {
-        if (State.isAutoMoving || State.isAnimating) return;
         if (State.history.length === 0) return;
         State.current = JSON.parse(State.history.pop());
-        State.autoChainCount = 0;
-        setLastMove("manual");
-        UI.render(State.current); updateButtons(); requestAutoCheck();
+        UI.render(State.current); updateButtons(); performAutoCheck();
       }
       
       function updateButtons() { 
@@ -415,40 +386,6 @@
       function clearStatus() { document.getElementById("status-msg").textContent = ""; hideWarning(); }
       function showWarning() { document.getElementById("stuck-warning").style.opacity = "1"; }
       function hideWarning() { document.getElementById("stuck-warning").style.opacity = "0"; }
-      function setLastMove(type, options = {}) { State.lastMove = { type, ...options }; }
-      function requestAutoCheck() {
-        const isCheckEnabled = document.getElementById("chk-autocheck").checked;
-        if (!isCheckEnabled) return;
-        Promise.all([State.lastAnimationPromise, State.lastRevealPromise]).then(() => {
-          if (State.isAutoMoving || State.isAutoFinishing || State.isAnimating) return;
-          performAutoCheck();
-        });
-      }
-      function scheduleReveal(card, moveType, onDone, endAt) {
-        if (!card) { if (onDone) onDone(); return; }
-        const key = getCardKey(card);
-        const delayMs = Config.REVEAL_DELAY_MS;
-        const waitMs = Math.max(0, (endAt || performance.now()) - performance.now());
-        State.lastRevealPromise = new Promise(resolve => {
-          setTimeout(() => {
-            if (!card.isOpen) {
-              card.isOpen = true;
-              const el = document.querySelector(`playing-card[data-key="${key}"]`);
-              if (el) {
-                el.setAttribute("cid", Rules.getCid(card));
-              } else {
-                setLastMove("manual", { animate: false });
-                UI.render(State.current);
-              }
-            }
-            if (onDone) setTimeout(onDone, Config.REVEAL_TO_MOVE_DELAY_MS);
-            resolve();
-          }, waitMs + delayMs);
-        });
-      }
-      function waitForAnimationsThen(callback) {
-        State.lastAnimationPromise.then(callback);
-      }
       
       async function performAutoCheck() {
         const isCheckEnabled = document.getElementById("chk-autocheck").checked;
@@ -475,7 +412,6 @@
       }
 
       async function startNewGame() {
-        if (State.isAutoMoving || State.isAnimating) return;
         showStatus("Gen...");
         const btnNew = document.getElementById("new-game");
         btnNew.disabled = true;
@@ -485,54 +421,19 @@
         State.initial = JSON.parse(JSON.stringify(newState));
         State.history = []; 
         State.isAutoFinishing = false;
-        State.isAutoMoving = false;
-        State.autoChainCount = 0;
         clearStatus();
         btnNew.disabled = false;
-        setLastMove("deal", { animate: false });
-        UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
-      }
-
-      function buildTestState() {
-        const tableau = Array.from({ length: 7 }, () => []);
-        for (let s = 0; s < 4; s++) {
-          const col = [];
-          for (let r = 13; r >= 1; r--) {
-            col.push({ suit: s, rank: r, color: (s % 2 === 0) ? 0 : 1, isOpen: r === 1 });
-          }
-          tableau[s] = col;
-        }
-        return { stock: [], waste: [], foundations: [[], [], [], []], tableau };
-      }
-
-      function startTestGame() {
-        if (State.isAutoMoving || State.isAnimating) return;
-        showStatus("Test...");
-        const testState = buildTestState();
-        State.current = testState;
-        State.initial = JSON.parse(JSON.stringify(testState));
-        State.history = [];
-        State.isAutoFinishing = false;
-        State.isAutoMoving = false;
-        State.autoChainCount = 0;
-        clearStatus();
-        setLastMove("deal", { animate: false });
-        UI.render(State.current); updateButtons(); requestAutoCheck();
-        checkVictoryCondition();
+        UI.render(State.current); updateButtons(); performAutoCheck(); // Init Check
       }
 
       function restartGame() {
-        if (State.isAutoMoving || State.isAnimating) return;
         if (!State.initial) return;
         if(confirm("最初からやり直しますか？")) {
             State.current = JSON.parse(JSON.stringify(State.initial));
             State.history = [];
             State.isAutoFinishing = false;
-            State.isAutoMoving = false;
-            State.autoChainCount = 0;
             clearStatus();
-            setLastMove("deal", { animate: false });
-            UI.render(State.current); updateButtons(); requestAutoCheck();
+            UI.render(State.current); updateButtons(); performAutoCheck();
         }
       }
 
@@ -541,21 +442,13 @@
         const scanAndMove = () => {
           const state = State.current;
           let moved = false;
-          let revealCard = null;
-          let prevFoundationCard = null;
-          let foundationIdx = null;
           for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
               const card = col[col.length - 1];
               if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
-                const prev = state.foundations[card.suit];
-                prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-                foundationIdx = card.suit;
                 state.foundations[card.suit].push(col.pop());
-                if (col.length > 0 && !col[col.length - 1].isOpen) {
-                  revealCard = col[col.length - 1];
-                }
+                if (col.length > 0) col[col.length - 1].isOpen = true;
                 moved = true; break; 
               }
             }
@@ -563,27 +456,16 @@
           if (!moved && state.waste.length > 0) {
             const card = state.waste[state.waste.length - 1];
             if (Rules.checkFoundationMove(card, card.suit).ok && Rules.isSafeToAutoMove(card)) {
-              const prev = state.foundations[card.suit];
-              prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-              foundationIdx = card.suit;
               state.foundations[card.suit].push(state.waste.pop());
               moved = true;
             }
             }
           if (moved) { 
-              State.isAutoMoving = true;
-              State.autoChainCount += 1;
-              setLastMove("auto", { foundationIdx, prevFoundationCard });
-              UI.render(State.current);
-              const endAt = State.lastAnimationEndAt;
-              const nextStep = () => waitForAnimationsThen(() => { setTimeout(triggerAutoFoundation, 80, true); });
-              if (revealCard) scheduleReveal(revealCard, "auto", nextStep, endAt);
-              else nextStep();
+              UI.render(State.current); 
+              setTimeout(triggerAutoFoundation, 100, true); 
           } else {
-              State.isAutoMoving = false;
-              State.autoChainCount = 0;
               checkVictoryCondition();
-              requestAutoCheck();
+              performAutoCheck();
           }
         };
         if (immediate) scanAndMove();
@@ -591,78 +473,54 @@
       }
 
       function handleStockClick() {
-        if (State.isAutoFinishing || State.isAutoMoving || State.isAnimating) return;
+        if (State.isAutoFinishing) return;
         clearStatus();
         pushHistory();
         const state = State.current;
         if (state.stock.length === 0) {
           state.stock = state.waste.reverse(); state.stock.forEach(c => c.isOpen = false); state.waste = [];
-          State.autoChainCount = 0;
-          setLastMove("manual", { animate: false });
         } else {
-          const prevWasteTop = state.waste.length > 0 ? snapshotCard(state.waste[state.waste.length - 1]) : null;
           const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
-          State.autoChainCount = 0;
-          setLastMove("draw", { cardKey: getCardKey(c), prevWasteCard: prevWasteTop });
         }
-        UI.render(State.current); triggerAutoFoundation();
+        UI.render(State.current); triggerAutoFoundation(); performAutoCheck();
       }
 
       function hintMove() {
-        if (State.isAutoFinishing || State.isAutoMoving || State.isAnimating) return;
+        if (State.isAutoFinishing) return;
         if (!State.current) return;
         clearStatus();
         const state = State.current;
         const move = bot.getNextMove(state);
         if (!move) { showStatus("NO MOVE", "#ff5555"); return; }
         pushHistory();
-        let revealCard = null;
-        let prevFoundationCard = null;
-        let foundationIdx = null;
         if (move.type === "t2f") {
           const col = state.tableau[move.tableauIdx];
-          const prev = state.foundations[move.suit];
-          prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-          foundationIdx = move.suit;
           state.foundations[move.suit].push(col.pop());
-          if (col.length > 0 && !col[col.length - 1].isOpen) revealCard = col[col.length - 1];
-          setLastMove("auto", { foundationIdx, prevFoundationCard });
+          if (col.length > 0) col[col.length - 1].isOpen = true;
         } else if (move.type === "w2f") {
-          const prev = state.foundations[move.suit];
-          prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-          foundationIdx = move.suit;
           state.foundations[move.suit].push(state.waste.pop());
-          setLastMove("auto", { foundationIdx, prevFoundationCard });
         } else if (move.type === "t2t") {
           const col = state.tableau[move.fromIdx];
           const run = col.splice(move.openIdx);
           state.tableau[move.toIdx] = state.tableau[move.toIdx].concat(run);
-          if (col.length > 0 && !col[col.length - 1].isOpen) revealCard = col[col.length - 1];
-          setLastMove("auto");
+          if (col.length > 0) col[col.length - 1].isOpen = true;
         } else if (move.type === "w2t") {
           state.tableau[move.toIdx].push(state.waste.pop());
-          setLastMove("auto");
         } else if (move.type === "draw") {
-          const prevWasteTop = state.waste.length > 0 ? snapshotCard(state.waste[state.waste.length - 1]) : null;
           const c = state.stock.pop(); c.isOpen = true; state.waste.push(c);
-          setLastMove("draw", { cardKey: getCardKey(c), prevWasteCard: prevWasteTop });
         } else if (move.type === "recycle") {
           state.stock = state.waste.reverse();
           state.stock.forEach(c => c.isOpen = false);
           state.waste = [];
-          setLastMove("manual", { animate: false });
         }
-        State.autoChainCount = 0;
         UI.render(State.current);
-        const endAt = State.lastAnimationEndAt;
-        const afterReveal = () => { checkVictoryCondition(); requestAutoCheck(); };
-        if (revealCard) scheduleReveal(revealCard, "auto", afterReveal, endAt);
-        else waitForAnimationsThen(afterReveal);
+        checkVictoryCondition();
+        performAutoCheck();
       }
 
       // --- [Event Delegation Click Handler] ---
       function handleSlotClick(type, idx, mode = "single", specificCardIdx = -1) {
-        if (State.isAutoFinishing || State.isAutoMoving || State.isAnimating) return;
+        if (State.isAutoFinishing) return;
         clearStatus();
         const state = State.current;
         let sourceArray, cardIdx;
@@ -683,22 +541,13 @@
         const run = sourceArray.slice(cardIdx);
         const isSingleCard = run.length === 1;
         let moveSuccess = false;
-        let revealCard = null;
-        let prevFoundationCard = null;
-        let foundationIdx = null;
-        let movedToFoundation = false;
-        let hasTableauOption = false;
 
         // 1. Long Press -> Foundation
         if (mode === "long" && isSingleCard) {
             if (Rules.checkFoundationMove(card, card.suit).ok) {
                 pushHistory();
-                const prev = state.foundations[card.suit];
-                prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-                foundationIdx = card.suit;
                 state.foundations[card.suit].push(sourceArray.pop());
                 if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                movedToFoundation = true;
                 moveSuccess = true;
             }
         }
@@ -718,93 +567,59 @@
                     if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
                 }
             }
-            if (bestTarget !== -1) hasTableauOption = true;
+            const hasTableauOption = (bestTarget !== -1);
             if (bestTarget !== -1) {
                 pushHistory();
                 state.tableau[bestTarget] = state.tableau[bestTarget].concat(run);
                 if (type === 'waste') state.waste.pop();
                 else {
                     state.tableau[idx] = sourceArray.slice(0, cardIdx);
-                    if (state.tableau[idx].length > 0 && !state.tableau[idx][state.tableau[idx].length - 1].isOpen) {
-                      revealCard = state.tableau[idx][state.tableau[idx].length - 1];
-                    }
+                    if (state.tableau[idx].length > 0) state.tableau[idx][state.tableau[idx].length - 1].isOpen = true;
                 }
                 moveSuccess = true;
             }
-        }
-
-        // 3. Single Click Fallback -> Foundation (only if no tableau option)
-        if (!moveSuccess && mode === "single" && isSingleCard && !hasTableauOption) {
-            if (Rules.checkFoundationMove(card, card.suit).ok) {
-                pushHistory();
-                const prev = state.foundations[card.suit];
-                prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-                foundationIdx = card.suit;
-                state.foundations[card.suit].push(sourceArray.pop());
-                if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
-                movedToFoundation = true;
-                moveSuccess = true;
+            if (!moveSuccess && mode === "single" && isSingleCard && !hasTableauOption) {
+                if (Rules.checkFoundationMove(card, card.suit).ok) {
+                    pushHistory();
+                    state.foundations[card.suit].push(sourceArray.pop());
+                    if (type === 'tableau' && sourceArray.length > 0) sourceArray[sourceArray.length-1].isOpen = true;
+                    moveSuccess = true;
+                }
             }
         }
 
-        if (moveSuccess) { 
-          State.autoChainCount = 0;
-          if (movedToFoundation) {
-            setLastMove("manual", { foundationIdx, prevFoundationCard });
-          } else {
-            setLastMove("manual");
-          }
-          UI.render(State.current); 
-          const endAt = State.lastAnimationEndAt;
-          const afterReveal = () => { triggerAutoFoundation(); requestAutoCheck(); };
-          if (revealCard) scheduleReveal(revealCard, "manual", afterReveal, endAt);
-          else waitForAnimationsThen(afterReveal);
-        }
+        if (moveSuccess) { UI.render(State.current); triggerAutoFoundation(); }
       }
 
       function checkVictoryCondition() {
         const state = State.current;
         const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
         if (total === 52) { 
-            State.isAutoMoving = false;
             document.getElementById("win-overlay").style.display = "flex"; 
             return; 
         }
         const stockEmpty = state.stock.length === 0 && state.waste.length === 0;
         const allTableauOpen = state.tableau.every(col => col.every(c => c.isOpen));
         if (stockEmpty && allTableauOpen && !State.isAutoFinishing) {
-            State.isAutoFinishing = true; State.isAutoMoving = true; setTimeout(autoDissolve, 50);
+            State.isAutoFinishing = true; setTimeout(autoDissolve, 50);
         }
       }
 
       function autoDissolve() {
         const state = State.current;
         let moved = false;
-        let prevFoundationCard = null;
-        let foundationIdx = null;
         for (let i = 0; i < 7; i++) {
             const col = state.tableau[i];
             if (col.length > 0) {
                 const c = col[col.length - 1];
                 if (Rules.checkFoundationMove(c, c.suit).ok) {
-                    const prev = state.foundations[c.suit];
-                    prevFoundationCard = prev.length > 0 ? snapshotCard(prev[prev.length - 1]) : null;
-                    foundationIdx = c.suit;
                     state.foundations[c.suit].push(col.pop());
                     moved = true; break;
                 }
             }
         }
-        if (moved) { 
-          State.autoChainCount += 1;
-          setLastMove("auto", { foundationIdx, prevFoundationCard });
-          UI.render(State.current); 
-          waitForAnimationsThen(() => { setTimeout(autoDissolve, 80); });
-        } else { 
-          State.isAutoMoving = false;
-          State.autoChainCount = 0;
-          checkVictoryCondition(); 
-        }
+        if (moved) { UI.render(State.current); setTimeout(autoDissolve, 50); }
+        else { checkVictoryCondition(); }
       }
       const Controller = {
         pushHistory,
@@ -814,10 +629,8 @@
         clearStatus,
         showWarning,
         hideWarning,
-        requestAutoCheck,
         performAutoCheck,
         startNewGame,
-        startTestGame,
         restartGame,
         triggerAutoFoundation,
         handleStockClick,
@@ -830,12 +643,6 @@
       /* --- [UI] --- */
       function render(state) {
         if (!state) return;
-        const prevRects = new Map();
-        document.querySelectorAll('playing-card[data-key]').forEach(el => {
-          prevRects.set(el.dataset.key, el.getBoundingClientRect());
-        });
-        const stockRect = document.getElementById("stock")?.getBoundingClientRect();
-
         document.querySelectorAll('.slot, .column').forEach(el => {
             el.innerHTML = "";
             const newEl = el.cloneNode(true);
@@ -843,24 +650,11 @@
         });
         
         const sEl = document.getElementById("stock");
-        if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back" data-key="stock-back"></playing-card>`; }
+        if (state.stock.length > 0) { sEl.innerHTML = `<playing-card cid="back"></playing-card>`; }
         sEl.onclick = Controller.handleStockClick;
 
         const wEl = document.getElementById("waste");
-        if (state.waste.length > 0) {
-          const card = state.waste[state.waste.length - 1];
-          if (State.lastMove && State.lastMove.type === "draw" && State.lastMove.prevWasteCard) {
-            const prev = State.lastMove.prevWasteCard;
-            const prevEl = document.createElement("playing-card");
-            prevEl.setAttribute("cid", Rules.getCid(prev));
-            prevEl.dataset.ghost = "waste";
-            wEl.appendChild(prevEl);
-          }
-          const topEl = document.createElement("playing-card");
-          topEl.setAttribute("cid", Rules.getCid(card));
-          topEl.dataset.key = getCardKey(card);
-          wEl.appendChild(topEl);
-        }
+        if (state.waste.length > 0) wEl.innerHTML = `<playing-card cid="${Rules.getCid(state.waste[state.waste.length-1])}"></playing-card>`;
         let wasteClickTimer = null;
         let wasteLongPressTimer = null;
         let wasteLongPressFired = false;
@@ -898,20 +692,7 @@
 
         state.foundations.forEach((stack, i) => {
           const el = document.getElementById(`foundation-${i}`);
-          if (stack.length > 0) {
-            const card = stack[stack.length - 1];
-            if (State.lastMove && State.lastMove.foundationIdx === i && State.lastMove.prevFoundationCard) {
-              const prev = State.lastMove.prevFoundationCard;
-              const prevEl = document.createElement("playing-card");
-              prevEl.setAttribute("cid", Rules.getCid(prev));
-              prevEl.dataset.ghost = "foundation";
-              el.appendChild(prevEl);
-            }
-            const topEl = document.createElement("playing-card");
-            topEl.setAttribute("cid", Rules.getCid(card));
-            topEl.dataset.key = getCardKey(card);
-            el.appendChild(topEl);
-          }
+          if (stack.length > 0) el.innerHTML = `<playing-card cid="${Rules.getCid(stack[stack.length-1])}"></playing-card>`;
         });
 
         state.tableau.forEach((col, colIdx) => {
@@ -926,7 +707,6 @@
             el.setAttribute("cid", Rules.getCid(card));
             el.style.top = `${rowIdx * overlap}px`; 
             el.dataset.idx = rowIdx;
-            el.dataset.key = getCardKey(card);
             colEl.appendChild(el);
           });
           
@@ -971,99 +751,11 @@
               if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
           };
         });
-
-        const lastMove = State.lastMove || {};
-        const motionRoot = window.motion;
-        const motionAnimate = (typeof motionRoot === "function" ? motionRoot : (motionRoot && motionRoot.animate)) || null;
-        const waapiAvailable = !!(Element.prototype && Element.prototype.animate);
-        const shouldAnimate = lastMove.animate !== false && (typeof motionAnimate === "function" || waapiAvailable);
-        const cleanupGhosts = () => {
-          document.querySelectorAll('[data-ghost="waste"], [data-ghost="foundation"]').forEach(el => el.remove());
-        };
-        if (shouldAnimate) {
-          const staggerMs = lastMove.type === "auto" ? Config.ANIM_STAGGER_MS : 0;
-          const animatedEls = [];
-          let animIndex = 0;
-          let maxEndMs = 0;
-          document.querySelectorAll('playing-card[data-key]').forEach(el => {
-            const key = el.dataset.key;
-            let fromRect = null;
-            if (lastMove.type === "draw" && lastMove.cardKey === key && stockRect) {
-              fromRect = stockRect;
-            } else if (prevRects.has(key)) {
-              fromRect = prevRects.get(key);
-            }
-            if (!fromRect) return;
-            const toRect = el.getBoundingClientRect();
-            const dx = fromRect.left - toRect.left;
-            const dy = fromRect.top - toRect.top;
-            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
-            el.style.transform = `translate(${dx}px, ${dy}px)`;
-            el.style.willChange = "transform";
-            el.style.zIndex = "9999";
-            const distance = Math.hypot(dx, dy);
-            const speed = Config.ANIM_SPEED_PX_PER_MS[lastMove.type] || Config.ANIM_SPEED_PX_PER_MS.manual;
-            const gearBoost = lastMove.type === "auto"
-              ? Math.min(
-                  Config.ANIM_GEARUP.maxMultiplier,
-                  1 + (Math.max(0, State.autoChainCount - Config.ANIM_GEARUP.startAt) * Config.ANIM_GEARUP.step)
-                )
-              : 1;
-            const minMs = lastMove.type === "auto" ? (Config.ANIM_MIN_MS / gearBoost) : Config.ANIM_MIN_MS;
-            const durationMs = Math.min(
-              Config.ANIM_MAX_MS,
-              Math.max(minMs, distance / (speed * gearBoost))
-            );
-            const delayMs = staggerMs ? (animIndex * staggerMs) : 0;
-            maxEndMs = Math.max(maxEndMs, delayMs + durationMs);
-            const easing = lastMove.type === "manual" ? Config.ANIM_EASE_MANUAL : Config.ANIM_EASE_AUTO;
-            if (typeof motionAnimate === "function") {
-              motionAnimate(el, { transform: [`translate(${dx}px, ${dy}px)`, "translate(0px, 0px)"] }, {
-                duration: durationMs / 1000,
-                easing,
-                delay: delayMs / 1000
-              });
-            } else {
-              el.animate(
-                [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0px, 0px)" }],
-                { duration: durationMs, easing, delay: delayMs, fill: "both" }
-              );
-            }
-            animatedEls.push(el);
-            animIndex++;
-          });
-          if (animatedEls.length > 0) {
-            State.animatingCount += 1;
-            State.isAnimating = true;
-            const endAt = performance.now() + maxEndMs + Config.ANIM_END_BUFFER_MS;
-            State.lastAnimationEndAt = endAt;
-            const finishedPromise = new Promise(resolve => setTimeout(resolve, maxEndMs + Config.ANIM_END_BUFFER_MS));
-            State.lastAnimationPromise = finishedPromise;
-            finishedPromise.then(() => {
-              animatedEls.forEach(el => { el.style.willChange = ""; el.style.zIndex = ""; });
-              State.animatingCount = Math.max(0, State.animatingCount - 1);
-              State.isAnimating = State.animatingCount > 0;
-              cleanupGhosts();
-            });
-          } else {
-            State.isAnimating = State.animatingCount > 0;
-            cleanupGhosts();
-            State.lastAnimationPromise = Promise.resolve();
-            State.lastAnimationEndAt = performance.now();
-          }
-        } else {
-          State.isAnimating = State.animatingCount > 0;
-          cleanupGhosts();
-          State.lastAnimationPromise = Promise.resolve();
-          State.lastAnimationEndAt = performance.now();
-        }
-        State.lastMove = null;
       }
       const UI = { render };
       
       /* --- [Events] --- */
       document.addEventListener('keydown', (e) => {
-        if (State.isAutoMoving || State.isAnimating) return;
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); Controller.popHistory(); }
         if (e.key === 'F2') { e.preventDefault(); Controller.startNewGame(); }
       });
@@ -1071,8 +763,7 @@
       document.getElementById("btn-restart").onclick = Controller.restartGame;
       document.getElementById("btn-hint").onclick = Controller.hintMove;
       document.getElementById("new-game").onclick = Controller.startNewGame;
-      document.getElementById("btn-test").onclick = Controller.startTestGame;
-      document.getElementById("chk-autocheck").onchange = () => { Controller.requestAutoCheck(); };
+      document.getElementById("chk-autocheck").onchange = () => { Controller.performAutoCheck(); };
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {

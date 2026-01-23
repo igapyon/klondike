@@ -55,7 +55,8 @@
 * `Stock` が空かつリサイクル可能: `Waste` の全カードを逆順にして `Stock` へ戻す (`isOpen = false`)。
 
 ### 4.2 カード移動後の自動処理 (Auto-Refresh)
-* 移動によって `Tableau[i]` の最後尾が `isOpen == false` になった場合、即座に `isOpen = true` に変更する。
+* 移動によって `Tableau[i]` の最後尾が `isOpen == false` になった場合、`isOpen = true` に変更する。
+    * アニメ版 UI では演出完了後にめくる（内部状態の更新は同一）。
 
 ### 4.3 自動完了 (Auto-Finish / シュババ)
 * 全 `Tableau` カードが `isOpen == true` であり、かつ `Stock` と `Waste` が空の場合、以下のループを許容する:
@@ -65,6 +66,10 @@
 * 操作後に `Foundations` へ移動可能なカードを探索し、遅延して自動移動する。
 * 自動移動は安全判定を満たす場合のみ実施する（A は即許可）。
     * 安全判定: 対象カードの一つ下のランクが、反対色の基礎山で両方とも成立済みであること。
+
+### 4.5 ヒント (Hint)
+* 簡易ソルバと同じ優先順位で次の一手を探索し、1回だけ自動実行する。
+* 優先順: Tableau→Foundation, Waste→Foundation, Tableau→Tableau, Waste→Tableau, Draw/Recycle。
 
 ---
 
