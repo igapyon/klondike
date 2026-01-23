@@ -8,6 +8,8 @@
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
+        --board-pad: 24px;
+        --grid-gap: 15px;
         --bg: #008000;
         --accent: #ffffff;
         --ink: #f5f2ea;
@@ -38,15 +40,19 @@
       
       #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 80px; text-align: right; }
       
-      .board { padding: 10px 24px 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; transition: gap 0.3s; }
-      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: 15px; justify-content: center; transition: gap 0.3s; }
+      .board { padding: 10px var(--board-pad) 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; transition: gap 0.3s; }
+      .top-row, .bottom-row { display: grid; grid-template-columns: repeat(7, var(--card-w)); gap: var(--grid-gap); justify-content: center; transition: gap 0.3s; }
 
       @media (max-width: 800px) {
-        :root { --card-w: 13vw; --card-h: 18.2vw; }
+        :root {
+          --board-pad: 10px;
+          --grid-gap: 4px;
+          --card-w: clamp(34px, calc((100vw - (var(--board-pad) * 2) - (var(--grid-gap) * 6)) / 7), 100px);
+          --card-h: calc(var(--card-w) * 1.4);
+        }
         header { padding: 12px 10px; }
         .controls { width: 100%; }
-        .board { padding: 10px 10px; gap: 20px; }
-        .top-row, .bottom-row { gap: 8px; }
+        .board { padding: 10px var(--board-pad); gap: 20px; }
       }
 
       .slot, .column {
