@@ -15,5 +15,14 @@
 - UI/操作の決定は README に記録する。
 - テストは手動チェックリストから始める。
 
+## 調整中パラメータ
+- 詰みチェック（簡易ソルバ）: LIMIT=1000, noProgressLoop=200, checkCurrentState のリトライ=13
+- 体感: noProgressLoop=200 は作業感が強く爽快感がない。50 は爽快感があった。
+- 体感: noProgressLoop=100 はぎりぎり楽しめるレベル。
+- 体感: 問題作成の noProgressLoop=13 はライトなゲームとして限界。
+- 今日のゴール設定: SOLVER_STALL_DEAL=12, SOLVER_STALL_CHECK=200。
+- 知見: 数字（試行回数・停滞許容量）を増やすと作業感が増えて爽快感が減る。
+- 体感: SOLVER_STALL_DEAL=13 がいちばんゲームバランス良さそう。
+
 ## 未確定事項
 - リサイクル条件、詰み判定の厳密さ
