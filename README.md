@@ -31,6 +31,7 @@ Current Version: v20260124
 - `AGENTS.md`: 開発時の合意事項・方針
 - `index.html`: アニメ版（Motion One / Test ボタンあり）
 - `index-noanime.html`: 非アニメ版
+- `index-offline.html`: CDN なしの内包版（CardMeister/Motion One をインライン化）
 
 ## 次に決めたいこと
 - リサイクル条件、詰み判定の厳密さ
