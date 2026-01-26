@@ -1,12 +1,61 @@
 # Architecture
 
+## Overview
+- A static web app that runs from a single HTML file.
+- Rules follow `GameLogic.md` as the primary source.
+- Card rendering uses CardMeister.
+
+## File Structure
+- `index.html`: self-contained distribution (libraries bundled).
+- `index-online.html`: animated version (Motion One / Test button).
+- `GameLogic.md`: game logic specification.
+- `README.md`: goals, policies, decisions.
+- `AGENTS.md`: development agreements.
+
+## Execution Model
+- Initialization: search for a solvable deck with the solver, then deal tableau and build stock.
+- Rendering: rebuild the DOM from the state object (full redraw).
+- Input: click/right-click/double-click triggers moves (single card or stack).
+- Validation: logic checks move validity, win, and stuck.
+- Automation: delayed auto-move plus endgame auto-finish.
+- Check: always-on stuck detection (simple solver) shows warnings.
+
+## State Management
+- Managed by a single `state` object.
+- Changes are made only through action handlers.
+- Keep a history stack for Undo.
+- Keep the initial state for Restart.
+
+## Terms
+- Tableau: 7 columns of cards, the main play area.
+- Foundations: suit stacks for completion.
+- Stock: face-down draw pile.
+- Waste: face-up cards drawn from stock.
+
+## UI Layer
+- Cards: use CardMeister `<playing-card>`.
+- Layout: CSS positions Tableau / Foundations / Stock / Waste.
+- Input: left click for normal move, long press to prefer foundation move (tableau top / waste top). Right click is only for stock move (Stock only).
+- Victory: show an overlay.
+- Assist UI: show Undo/Restart/New Game/Solvability Check controls.
+- Header: show version and GitHub link.
+
+## Open Questions
+- Rule details (recycle conditions, strictness of stuck detection)
+- Save/load (deferred)
+
+---
+
+# アーキテクチャ
+
 ## 概要
 - 単一 HTML（1ファイル）で動作する静的 Web アプリ。
 - ルールは `GameLogic.md` を一次ソースとする。
 - カード描画は CardMeister を利用する。
 
 ## ファイル構成
-- `index.html`: HTML/CSS/JS をすべて内包。
+- `index.html`: 自己完結版（ライブラリ同梱で単一HTMLファイルで動作）。
+- `index-online.html`: ネットワーク必要版（ライブラリはCDNから都度読み込み）。
 - `GameLogic.md`: ゲームロジック仕様。
 - `README.md`: 目的・方針・決定事項。
 - `AGENTS.md`: 開発合意事項。
