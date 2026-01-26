@@ -1,10 +1,9 @@
 # Klondike (Static Web App)
 
-Play Klondike (Solitaire) in the browser — a static web app contained in a single HTML file.
+Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web app with smooth, tactile controls and friendly recovery tools.
 
 ![Screenshot](screenshot-20260121.png)
 
-Current Version: v20260126
 
 ## Purpose
 - Publish as a static web app that is complete in a single HTML file.
@@ -26,6 +25,14 @@ Current Version: v20260126
 - Third-party licenses: see `THIRD_PARTY_NOTICES.md`.
 - Keep debug logs for now.
 
+## Highlights
+- Single-file static web app that is easy to share, archive, and run anywhere.
+- Fast, tactile controls (click / long press / right click) tuned for smooth play.
+- Friendly recovery tools: Undo/Restart, Hint, and delayed auto-move with safety checks.
+- New Game avoids overly stuck starts for better flow.
+- Multiple builds (animated / non-animated / self-contained) for different use cases.
+- Solvability warnings help you understand when the game is stuck.
+
 ## Directory
 - `index.html`: self-contained distribution (libraries bundled)
 - `index-online.html`: animated version (Motion One / Test button)
@@ -41,11 +48,18 @@ Current Version: v20260126
 
 # クロンダイク（静的 Web アプリ）
 
-ブラウザで遊べるクロンダイク（ソリティア）。単一 HTML で完結する静的 Web アプリ。
+ブラウザで遊べるクロンダイク（ソリティア）。単一 HTML で完結し、触って気持ち良い操作性とリカバリ手段が揃った静的 Web アプリ。
+
+## 魅力ポイント
+- 単一 HTML の静的 Web アプリで、配布・保存・起動がとても簡単。
+- クリック/長押し/右クリックの操作が速く、触っていて気持ち良い。
+- Undo/Restart、Hint、遅延付きオート移動など詰まり時のケアが充実。
+- New Game は詰まりにくい初期配置を作り、テンポが良い。
+- アニメ版/非アニメ版/自己完結版の3種類を用途で選べる。
+- 詰み警告で状況が分かりやすい。
 
 ![Screenshot](screenshot-20260121.png)
 
-現行バージョン: v20260126
 
 ## 目的
 - 1ファイル（単一 HTML）完結の静的 Web アプリとして公開できる形にする。
