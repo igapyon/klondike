@@ -20,6 +20,7 @@ Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web ap
 - `GameLogic.md`: game logic specification
 - `AGENTS.md`: development agreements and policies
 - `THIRD_PARTY_NOTICES.md`: third-party license texts
+- `ARCHITECTURE.md`: behavior notes and execution model
 
 ## Third-Party
 - This project bundles and/or uses third-party products.
@@ -49,6 +50,7 @@ Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web ap
 - `GameLogic.md`: ゲームロジック仕様
 - `AGENTS.md`: 開発時の合意事項・方針
 - `THIRD_PARTY_NOTICES.md`: OSS ライセンス本文
+- `ARCHITECTURE.md`: 挙動メモと実行モデル
 
 ## サードパーティ
 - 本プロジェクトはサードパーティ製品を同梱または利用しています。
