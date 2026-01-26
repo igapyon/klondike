@@ -4,7 +4,7 @@ Play Klondike (Solitaire) in the browser — a static web app contained in a sin
 
 ![Screenshot](screenshot-20260121.png)
 
-Current Version: v20260124
+Current Version: v20260126
 
 ## Purpose
 - Publish as a static web app that is complete in a single HTML file.
@@ -23,7 +23,7 @@ Current Version: v20260124
 - “Solvability Check” toggle warns when stuck.
 - Hint button runs the next move from the simple solver once.
 - Header shows the version and GitHub link.
-- Libraries: CardMeister (Unlicense), Motion One (MIT, animated only).
+- Third-party licenses: see `THIRD_PARTY_NOTICES.md`.
 - Keep debug logs for now.
 
 ## Directory
@@ -32,6 +32,7 @@ Current Version: v20260124
 - `index-noanime.html`: non-animated version
 - `GameLogic.md`: game logic specification
 - `AGENTS.md`: development agreements and policies
+- `THIRD_PARTY_NOTICES.md`: third-party license texts
 
 ## Next Decisions
 - Recycle conditions and strictness of stuck detection
@@ -44,7 +45,7 @@ Current Version: v20260124
 
 ![Screenshot](screenshot-20260121.png)
 
-現行バージョン: v20260124
+現行バージョン: v20260126
 
 ## 目的
 - 1ファイル（単一 HTML）完結の静的 Web アプリとして公開できる形にする。
@@ -63,7 +64,7 @@ Current Version: v20260124
 - 「Solvability Check」トグルで詰まり判定を行い、警告を表示する。
 - Hint ボタンで簡易ソルバの次の一手を 1 回だけ自動実行する。
 - ヘッダーにバージョン表記と GitHub リンクを表示する。
-- 採用ライブラリ: CardMeister（Unlicense）、Motion One（MIT, アニメ版のみ）。
+- OSS ライセンス: `THIRD_PARTY_NOTICES.md` を参照。
 - デバッグログは当面残す。
 
 ## ディレクトリ
@@ -72,6 +73,7 @@ Current Version: v20260124
 - `index-noanime.html`: アニメーションなし版（カード移動などが非表示）
 - `GameLogic.md`: ゲームロジック仕様
 - `AGENTS.md`: 開発時の合意事項・方針
+- `THIRD_PARTY_NOTICES.md`: OSS ライセンス本文
 
 ## 次に決めたいこと
 - リサイクル条件、詰み判定の厳密さ
