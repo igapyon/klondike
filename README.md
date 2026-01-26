@@ -17,7 +17,7 @@ Current Version: v20260124
 - Show an overlay on victory.
 - Undo/Restart implemented (Ctrl/Cmd+Z, button).
 - New Game generates a less-stuck initial layout.
-- `index.html` is the animated version with a Test button for chain animation test decks.
+- `index-online.html` is the animated version with a Test button for chain animation test decks.
 - `index-noanime.html` is the non-animated version.
 - `index-offline.html` is the offline bundled version (CardMeister/Motion One inlined).
 - “Solvability Check” toggle warns when stuck.
@@ -29,7 +29,7 @@ Current Version: v20260124
 ## Directory
 - `GameLogic.md`: game logic specification
 - `AGENTS.md`: development agreements and policies
-- `index.html`: animated version (Motion One / Test button)
+- `index-online.html`: animated version (Motion One / Test button)
 - `index-noanime.html`: non-animated version
 - `index-offline.html`: offline bundled version (CardMeister/Motion One inlined)
 
@@ -57,7 +57,7 @@ Current Version: v20260124
 - 勝利時はオーバーレイで表示する。
 - Undo/Restart を実装済み（Ctrl/Cmd+Z、ボタンあり）。
 - New Game ボタンで詰まりにくい初期配置を生成する。
-- `index.html` はアニメ版で Test ボタンがあり、連鎖アニメ用のテストデッキを生成する。
+- `index-online.html` はアニメ版で Test ボタンがあり、連鎖アニメ用のテストデッキを生成する。
 - `index-noanime.html` は非アニメ版。
 - `index-offline.html` は CDN なしの内包版（CardMeister/Motion One をインライン化）。
 - 「Solvability Check」トグルで詰まり判定を行い、警告を表示する。
@@ -69,7 +69,7 @@ Current Version: v20260124
 ## ディレクトリ
 - `GameLogic.md`: ゲームロジック仕様
 - `AGENTS.md`: 開発時の合意事項・方針
-- `index.html`: アニメ版（Motion One / Test ボタンあり）
+- `index-online.html`: アニメ版（Motion One / Test ボタンあり）
 - `index-noanime.html`: 非アニメ版
 - `index-offline.html`: CDN なしの内包版（CardMeister/Motion One をインライン化）
 
