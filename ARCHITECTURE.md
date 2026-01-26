@@ -8,6 +8,7 @@
 ## File Structure
 - `index.html`: self-contained distribution (libraries bundled).
 - `index-online.html`: animated version (Motion One / Test button).
+- `index-noanime.html`: non-animated version.
 - `GameLogic.md`: game logic specification.
 - `README.md`: goals, policies, decisions.
 - `AGENTS.md`: development agreements.
@@ -40,6 +41,15 @@
 - Assist UI: show Undo/Restart/New Game/Solvability Check controls.
 - Header: show version and GitHub link.
 
+## Behavior Notes
+- Draw is fixed to one card (Draw 1).
+- Auto-move has a delay (with safety checks).
+- Undo/Restart is available (Ctrl/Cmd+Z, button).
+- New Game generates a less-stuck initial layout.
+- Solvability Check toggles stuck warnings.
+- Hint runs the next move from the simple solver once.
+- Keep debug logs for now.
+
 ## Open Questions
 - Rule details (recycle conditions, strictness of stuck detection)
 - Save/load (deferred)
@@ -56,6 +66,7 @@
 ## ファイル構成
 - `index.html`: 自己完結版（ライブラリ同梱で単一HTMLファイルで動作）。
 - `index-online.html`: ネットワーク必要版（ライブラリはCDNから都度読み込み）。
+- `index-noanime.html`: アニメーションなし版（カード移動などが非表示）。
 - `GameLogic.md`: ゲームロジック仕様。
 - `README.md`: 目的・方針・決定事項。
 - `AGENTS.md`: 開発合意事項。
@@ -87,6 +98,15 @@
 - 勝利演出: オーバーレイを表示。
 - 補助UI: Undo/Restart/New Game/Solvability Check のコントロールを表示。
 - ヘッダー: バージョン表記と GitHub リンクを表示。
+
+## 挙動メモ
+- ドローは 1 枚固定（Draw 1）。
+- オート移動は遅延付き（安全判定あり）。
+- Undo/Restart を利用可能（Ctrl/Cmd+Z、ボタンあり）。
+- New Game は詰まりにくい初期配置を生成する。
+- 「Solvability Check」トグルで詰まり判定を行い、警告を表示する。
+- Hint ボタンで簡易ソルバの次の一手を 1 回だけ自動実行する。
+- デバッグログは当面残す。
 
 ## 未確定事項
 - ルール詳細（リサイクル条件、詰み判定）
