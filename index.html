@@ -110,7 +110,7 @@
       </h1>
       <div class="controls">
         <span id="status-msg"></span>
-        <label class="toggle-label" title="自動判定＋デバッグログ出力">
+        <label class="toggle-label" title="Auto check + debug logs">
             <input type="checkbox" id="chk-autocheck" checked> Solvability Check
         </label>
         <button id="btn-undo" disabled>Undo</button>
@@ -383,10 +383,10 @@
       }
       function canPlaceOnTableau(card, tIdx) {
         const dest = State.current.tableau[tIdx];
-        if (dest.length === 0) return { ok: (card.rank === 13), type: "Kのみ" };
+        if (dest.length === 0) return { ok: (card.rank === 13), type: "K-only" };
         const top = dest[dest.length - 1];
         const match = top.isOpen && (card.rank === top.rank - 1) && (card.color !== top.color);
-        return match ? { ok: true, type: "連番" } : { ok: false };
+        return match ? { ok: true, type: "Run" } : { ok: false };
       }
       const Rules = { isSafeToAutoMove, getCid, checkFoundationMove, canPlaceOnTableau };
 
@@ -528,7 +528,7 @@
       function restartGame() {
         if (State.isAutoMoving || State.isAnimating) return;
         if (!State.initial) return;
-        if(confirm("最初からやり直しますか？")) {
+        if(confirm("Restart from the beginning?")) {
             State.current = JSON.parse(JSON.stringify(State.initial));
             State.history = [];
             State.isAutoFinishing = false;
@@ -713,13 +713,13 @@
             for (let i = 0; i < 7; i++) {
                 if (type === 'tableau' && i === idx) continue;
                 const resT = Rules.canPlaceOnTableau(run[0], i);
-                if (resT.ok && resT.type === "連番") { bestTarget = i; break; }
+                if (resT.ok && resT.type === "Run") { bestTarget = i; break; }
             }
             if (bestTarget === -1) {
                 for (let i = 0; i < 7; i++) {
                     if (type === 'tableau' && i === idx) continue;
                     const resT = Rules.canPlaceOnTableau(run[0], i);
-                    if (resT.ok && resT.type === "Kのみ") { bestTarget = i; break; }
+                    if (resT.ok && resT.type === "K-only") { bestTarget = i; break; }
                 }
             }
             if (bestTarget !== -1) hasTableauOption = true;
