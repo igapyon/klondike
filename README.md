@@ -19,7 +19,7 @@ Current Version: v20260124
 - New Game generates a less-stuck initial layout.
 - `index-online.html` is the animated version with a Test button for chain animation test decks.
 - `index-noanime.html` is the non-animated version.
-- `index-offline.html` is the offline bundled version (CardMeister/Motion One inlined).
+- `index.html` is the self-contained distribution (libraries bundled).
 - “Solvability Check” toggle warns when stuck.
 - Hint button runs the next move from the simple solver once.
 - Header shows the version and GitHub link.
@@ -27,11 +27,11 @@ Current Version: v20260124
 - Keep debug logs for now.
 
 ## Directory
-- `GameLogic.md`: game logic specification
-- `AGENTS.md`: development agreements and policies
+- `index.html`: self-contained distribution (libraries bundled)
 - `index-online.html`: animated version (Motion One / Test button)
 - `index-noanime.html`: non-animated version
-- `index-offline.html`: offline bundled version (CardMeister/Motion One inlined)
+- `GameLogic.md`: game logic specification
+- `AGENTS.md`: development agreements and policies
 
 ## Next Decisions
 - Recycle conditions and strictness of stuck detection
@@ -58,8 +58,8 @@ Current Version: v20260124
 - Undo/Restart を実装済み（Ctrl/Cmd+Z、ボタンあり）。
 - New Game ボタンで詰まりにくい初期配置を生成する。
 - `index-online.html` はアニメ版で Test ボタンがあり、連鎖アニメ用のテストデッキを生成する。
-- `index-noanime.html` は非アニメ版。
-- `index-offline.html` は CDN なしの内包版（CardMeister/Motion One をインライン化）。
+- `index-noanime.html` はアニメーションなし版（カード移動などが非表示）。
+- `index.html` は自己完結版（ライブラリ同梱で単一HTMLファイルで動作）。
 - 「Solvability Check」トグルで詰まり判定を行い、警告を表示する。
 - Hint ボタンで簡易ソルバの次の一手を 1 回だけ自動実行する。
 - ヘッダーにバージョン表記と GitHub リンクを表示する。
@@ -67,11 +67,11 @@ Current Version: v20260124
 - デバッグログは当面残す。
 
 ## ディレクトリ
+- `index.html`: 自己完結版（ライブラリ同梱で単一HTMLファイルで動作）
+- `index-online.html`: ネットワーク必要版（ライブラリはCDNから都度読み込み）
+- `index-noanime.html`: アニメーションなし版（カード移動などが非表示）
 - `GameLogic.md`: ゲームロジック仕様
 - `AGENTS.md`: 開発時の合意事項・方針
-- `index-online.html`: アニメ版（Motion One / Test ボタンあり）
-- `index-noanime.html`: 非アニメ版
-- `index-offline.html`: CDN なしの内包版（CardMeister/Motion One をインライン化）
 
 ## 次に決めたいこと
 - リサイクル条件、詰み判定の厳密さ

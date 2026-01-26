@@ -6,7 +6,8 @@
 - Card rendering uses CardMeister.
 
 ## File Structure
-- `index-online.html`: includes HTML/CSS/JS in one file.
+- `index.html`: self-contained distribution (libraries bundled).
+- `index-online.html`: animated version (Motion One / Test button).
 - `GameLogic.md`: game logic specification.
 - `README.md`: goals, policies, decisions.
 - `AGENTS.md`: development agreements.
@@ -53,7 +54,8 @@
 - カード描画は CardMeister を利用する。
 
 ## ファイル構成
-- `index-online.html`: HTML/CSS/JS をすべて内包。
+- `index.html`: 自己完結版（ライブラリ同梱で単一HTMLファイルで動作）。
+- `index-online.html`: ネットワーク必要版（ライブラリはCDNから都度読み込み）。
 - `GameLogic.md`: ゲームロジック仕様。
 - `README.md`: 目的・方針・決定事項。
 - `AGENTS.md`: 開発合意事項。
