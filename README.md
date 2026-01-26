@@ -2,7 +2,7 @@
 
 Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web app with smooth, tactile controls and friendly recovery tools.
 
-![Screenshot](screenshot-20260121.png)
+![Screenshot](screenshot-20260126.png)
 
 
 ## Highlights
@@ -40,7 +40,7 @@ Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web ap
 - アニメ版/非アニメ版/自己完結版の3種類を用途で選べる。
 - 詰み警告で状況が分かりやすい。
 
-![Screenshot](screenshot-20260121.png)
+![Screenshot](screenshot-20260126.png)
 
 
 ## ディレクトリ
