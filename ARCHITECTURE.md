@@ -6,9 +6,10 @@
 - Card rendering uses CardMeister.
 
 ## File Structure
-- `index.html`: self-contained distribution (libraries bundled).
-- `index-online.html`: animated version (Motion One / Test button).
-- `index-noanime.html`: non-animated version.
+- `index.html`: landing page (launcher for offline/online builds).
+- `klondike-src.html`: build source template.
+- `klondike.html`: offline self-contained build output.
+- `klondike-online.html`: online build output (CDN loading).
 - `GameLogic.md`: game logic specification.
 - `README.md`: goals, policies, decisions.
 - `AGENTS.md`: development agreements.
@@ -52,7 +53,66 @@
 
 ## Open Questions
 - Rule details (recycle conditions, strictness of stuck detection)
-- Save/load (deferred)
+- Post-victory replay/board-reproduction behavior
+
+## TODO (Spec)
+- Add automatic save/restore of in-progress play data using `localStorage`.
+- Save payload includes `current`, `initial`, `history` (Undo stack), and UI setting toggles.
+- Trigger save on completion of `handleSlotClick()`, `startNewGame()`, `restartGame()`, and `popHistory()` (Undo).
+- Restore automatically on app startup.
+- Use an `APP_VERSION`-tagged schema.
+- If stored data is corrupted or schema is incompatible, reset safely.
+- Use separate storage keys for offline/online variants; define one-time migration from legacy `index*.html` keys.
+- Add deterministic initial-board reproduction code using `seed + attemptIndex` (e.g. `SEED-000137`).
+- Record/lock the generation contract used for reproduction (`schemaVersion`, PRNG/shuffle behavior, solver thresholds).
+- Document the minimum build specification before implementation (inputs/outputs, 2 build targets, offline boundary rules).
+- Define file naming migration for build pipeline:
+- source: `klondike-src.html`
+- outputs: `klondike.html` (offline), `klondike-online.html` (online)
+- no-animation variant removed from active targets.
+- Define build input/output paths (editable sources under `src/`, generated artifacts under project root or `dist/`).
+- Define target matrix and differences (2 targets):
+- `klondike.html`: offline self-contained (no CDN at runtime).
+- `klondike-online.html`: online target that may keep CDN loading.
+- Define external dependency boundary rules:
+- offline targets must fail build if any external runtime URL remains.
+- online target must explicitly whitelist allowed CDN URLs.
+- Define deterministic build behavior (same input => same output bytes except timestamp/version fields).
+- Define build command contract (`npm run build`, optional per-target build commands).
+- Define validation gate command (`npm run check:all`) including at least smoke tests + build.
+- Define migration rule: generated HTML is not edited directly; changes are made in source files and rebuilt.
+- Introduce a mobile-first hamburger menu (`☰`) at top-right for low-frequency actions.
+- Keep high-frequency actions visible (`Undo`, `Hint`), move low-frequency actions into menu (`Restart`, `New Game`, `Solvability Check`, `Test`).
+- Place `Test` at the bottom of the menu and consider showing it only in developer mode.
+- Add board reproduction key system with two key types:
+- `StartKey` (short): reproduce initial board from `seed + attemptIndex`.
+- `StateKey` (long): reproduce current in-progress state (serialized snapshot).
+- Show/copy keys during play and after game completion.
+- Add key import flow available at startup and during play (with confirmation before replacing current board).
+- Support URL-based reproduction for `StartKey` via query/hash parameter (single-file compatible).
+- Keep full `StateKey` primarily as clipboard text (avoid URL length/privacy issues).
+- Add a stronger clear-completion presentation to improve sense of achievement and session closure.
+- Show a clear-result modal with next actions (`New Game`, `Share StartKey`, `Copy StateKey`).
+- Include celebratory visual effects on clear (mobile-safe and skippable/lightweight mode).
+- Add chain-hype effect during auto-move streaks (Puyo-style): show `Chain xN` with escalating visuals.
+- Use existing `autoChainCount` as base signal; show final/max chain in clear-result summary.
+- Add settings toggle(s) for clear effects / chain effects.
+- Add move counter UI with compact label `Moves: N`.
+- Count only player actions (exclude auto-move chains from this counter).
+- Define `Hint` handling explicitly (count as player-assisted move or separate metric).
+- Undo must roll back move counter consistently with board/history.
+- Reset move counter on `New Game` and `Restart`.
+- Show final `Moves` value in clear-result modal.
+- Prevent reveal/auto-chain race: do not start auto-chain while reveal is in progress.
+- Define strict post-move order: `manual move` -> `animation wait` -> `reveal` -> `auto-chain`.
+- Add explicit `isRevealing` state and disallow overlap with `isAutoMoving`.
+- Unify input guard to block interactions during `isAnimating || isRevealing || isAutoMoving`.
+- Add regression checks to ensure no simultaneous reveal+chain progression.
+- Add audio feedback design:
+- Play a short flip sound on reveal.
+- Play positive escalating chain sounds during auto-chain progression.
+- Play a clear fanfare sound on game completion.
+- Add audio controls (mute toggle and volume level), defaulting to safe mobile-friendly volume.
 
 ---
 
@@ -64,9 +124,10 @@
 - カード描画は CardMeister を利用する。
 
 ## ファイル構成
-- `index.html`: 自己完結版（ライブラリ同梱で単一HTMLファイルで動作）。
-- `index-online.html`: ネットワーク必要版（ライブラリはCDNから都度読み込み）。
-- `index-noanime.html`: アニメーションなし版（カード移動などが非表示）。
+- `index.html`: ランディングページ（オフライン版/オンライン版への起動導線）。
+- `klondike-src.html`: ビルド元テンプレート。
+- `klondike.html`: 自己完結版のビルド生成物。
+- `klondike-online.html`: CDN利用のオンライン版ビルド生成物。
 - `GameLogic.md`: ゲームロジック仕様。
 - `README.md`: 目的・方針・決定事項。
 - `AGENTS.md`: 開発合意事項。
@@ -110,4 +171,63 @@
 
 ## 未確定事項
 - ルール詳細（リサイクル条件、詰み判定）
-- セーブ/ロード（後回し）
+- 勝利後の再現（リプレイ/盤面再現）仕様
+
+## TODO（仕様）
+- `localStorage` を使ったプレイ中データの自動保存/自動復元を追加する。
+- 保存対象は `current`、`initial`、`history`（Undo 履歴）、設定トグルを含める。
+- 保存タイミングは `handleSlotClick()` / `startNewGame()` / `restartGame()` / `popHistory()`（Undo）完了時とする。
+- 起動時に自動復元する。
+- `APP_VERSION` 付きスキーマを使う。
+- 保存データ破損やスキーマ非互換時は安全リセットする。
+- オフライン版/オンライン版で保存キーを分離し、旧 `index*.html` キーからの1回移行方針を定義する。
+- `seed + attemptIndex`（例: `SEED-000137`）で初期盤面を決定的に再現できるコード方式を追加する。
+- 再現性の前提となる生成契約（`schemaVersion`、PRNG/シャッフル挙動、ソルバ閾値）を記録・固定する。
+- 実装前に最小ビルド仕様（入出力、2ターゲット、オフライン境界ルール）を文書化する。
+- ビルド命名の移行方針を定義する。
+- ソース: `klondike-src.html`
+- 出力: `klondike.html`（オフライン）/ `klondike-online.html`（オンライン）
+- noanime 系は現行ターゲットから除外済み（削除済み）。
+- ビルドの入出力パスを定義する（編集対象は `src/`、生成物はプロジェクトルートまたは `dist/`）。
+- 2ターゲットの差分方針を定義する。
+- `klondike.html`: オフライン完結（実行時 CDN 禁止）。
+- `klondike-online.html`: オンライン版として CDN 読み込みを許可。
+- 外部依存の境界ルールを定義する。
+- オフライン版は外部 URL が残っていたらビルド失敗にする。
+- オンライン版は許可 CDN を明示したホワイトリスト運用にする。
+- 決定的ビルド要件を定義する（同一入力から同一出力を生成。時刻/バージョン埋込を除く）。
+- ビルドコマンド仕様を定義する（`npm run build`、必要ならターゲット別コマンド）。
+- 品質ゲートを定義する（`npm run check:all` に最低限 smoke test + build を含める）。
+- 運用ルールを定義する（生成 HTML を直接編集しない。変更はソースを編集して再ビルドする）。
+- スマホ向けに右上ハンバーガーメニュー（`☰`）を導入し、低頻度操作の退避先にする。
+- 高頻度操作（`Undo`, `Hint`）は常時表示し、低頻度操作（`Restart`, `New Game`, `Solvability Check`, `Test`）はメニュー内に移す。
+- `Test` はメニュー最下段に配置し、開発者モード時のみ表示する案を検討する。
+- 盤面再現キーの仕組みを追加する（2種類）。
+- `StartKey`（短い）: `seed + attemptIndex` で初期盤面を再現。
+- `StateKey`（長い）: 途中状態を含むスナップショットを直列化して再現。
+- ゲーム途中とゲーム終了時にキーを閲覧・コピーできるようにする。
+- 起動時/プレイ中の両方でキー入力による復元を可能にする（現局面上書き前に確認）。
+- `StartKey` は URL クエリ/ハッシュ経由の復元に対応する（single-file 互換）。
+- `StateKey` は URL 長とプライバシーの観点から、主にクリップボード運用とする。
+- クリア時の達成感と区切りを強める演出を追加する。
+- クリア結果モーダルを表示し、次アクション（`New Game` / `Share StartKey` / `Copy StateKey`）を明示する。
+- クリア演出（祝賀系ビジュアル）を追加する（モバイル配慮、スキップ/軽量化対応）。
+- 連鎖中に「ぷよぷよ風」の盛り上げ演出を追加する（`Chain xN` 表示、連鎖数に応じた段階強化）。
+- 既存の `autoChainCount` を活用し、クリア結果に最終/最大連鎖を表示する。
+- クリア演出/連鎖演出の ON/OFF 設定トグルを追加する。
+- 手数カウンタ UI を追加し、短いラベル `Moves: N` で表示する。
+- カウント対象は人間操作のみとし、オート連鎖は除外する。
+- `Hint` を手数に含めるかは仕様として明示する（別メトリクス化も検討）。
+- `Undo` で盤面履歴と同じように手数も巻き戻す。
+- `New Game` と `Restart` で手数をリセットする。
+- クリア結果モーダルに最終 `Moves` を表示する。
+- めくり（reveal）と自動連鎖（auto-chain）の競合を防止する（めくり中は連鎖開始しない）。
+- 操作後の処理順を固定する（`manual move` -> `animation wait` -> `reveal` -> `auto-chain`）。
+- `isRevealing` 状態を追加し、`isAutoMoving` と同時に成立しないようにする。
+- 入力ガードを統一し、`isAnimating || isRevealing || isAutoMoving` 中は操作を受け付けない。
+- 回帰確認項目として「めくりと連鎖の同時進行が起きないこと」を追加する。
+- 音演出の仕様を追加する。
+- カードめくり時に短いフリップ音を鳴らす。
+- 自動連鎖中にポジティブな連鎖音を段階的に鳴らす。
+- クリア時にファンファーレ音を鳴らす。
+- 音量設定（ミュートトグル + 音量レベル）を追加し、モバイル配慮の初期音量を定義する。
