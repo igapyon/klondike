@@ -186,6 +186,187 @@
 
       document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
 
+      /* --- [Persistence] --- */
+      const Persistence = (() => {
+        const SCHEMA_VERSION = 1;
+        const KEY_PREFIX = "klondike:save";
+
+        function getVariant() {
+          const name = (location.pathname.split("/").pop() || "").toLowerCase();
+          return name.includes("online") ? "online" : "offline";
+        }
+
+        function getPrimaryKey() {
+          return `${KEY_PREFIX}:${getVariant()}:v${SCHEMA_VERSION}`;
+        }
+
+        function getLegacyKeys() {
+          const variant = getVariant();
+          const common = ["klondike:save", "klondike-save"];
+          if (variant === "online") {
+            return [
+              ...common,
+              "klondike:save:index-online.html",
+              "klondike-save:index-online.html",
+              "klondike-save-online"
+            ];
+          }
+          return [
+            ...common,
+            "klondike:save:index.html",
+            "klondike:save:index-noanime.html",
+            "klondike-save:index.html",
+            "klondike-save:index-noanime.html",
+            "klondike-save-offline"
+          ];
+        }
+
+        function storageAvailable() {
+          try {
+            const key = "__klondike_storage_test__";
+            localStorage.setItem(key, "1");
+            localStorage.removeItem(key);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function removeKey(key) {
+          try { localStorage.removeItem(key); } catch (e) {}
+        }
+
+        function migrateLegacyIfNeeded(primaryKey) {
+          let exists = null;
+          try { exists = localStorage.getItem(primaryKey); } catch (e) { return; }
+          if (exists !== null) return;
+          const keys = getLegacyKeys();
+          for (const legacyKey of keys) {
+            let value = null;
+            try { value = localStorage.getItem(legacyKey); } catch (e) { return; }
+            if (value === null) continue;
+            try {
+              localStorage.setItem(primaryKey, value);
+              localStorage.removeItem(legacyKey);
+            } catch (e) {}
+            break;
+          }
+        }
+
+        function isCard(card) {
+          return !!card
+            && Number.isInteger(card.suit) && card.suit >= 0 && card.suit <= 3
+            && Number.isInteger(card.rank) && card.rank >= 1 && card.rank <= 13
+            && Number.isInteger(card.color) && (card.color === 0 || card.color === 1)
+            && typeof card.isOpen === "boolean";
+        }
+
+        function isCardArray(cards) {
+          return Array.isArray(cards) && cards.every(isCard);
+        }
+
+        function isBoardState(state) {
+          if (!state || typeof state !== "object") return false;
+          if (!isCardArray(state.stock) || !isCardArray(state.waste)) return false;
+          if (!Array.isArray(state.foundations) || state.foundations.length !== 4) return false;
+          if (!Array.isArray(state.tableau) || state.tableau.length !== 7) return false;
+          if (!state.foundations.every(isCardArray)) return false;
+          if (!state.tableau.every(isCardArray)) return false;
+          return true;
+        }
+
+        function isHistory(history) {
+          if (!Array.isArray(history)) return false;
+          for (const item of history) {
+            if (typeof item !== "string") return false;
+            let parsed = null;
+            try { parsed = JSON.parse(item); } catch (e) { return false; }
+            if (!isBoardState(parsed)) return false;
+          }
+          return true;
+        }
+
+        function readToggleState() {
+          const chk = document.getElementById("chk-autocheck");
+          return { autoCheck: !!(chk && chk.checked) };
+        }
+
+        function applyToggles(toggles) {
+          const chk = document.getElementById("chk-autocheck");
+          if (!chk || !toggles || typeof toggles !== "object") return;
+          if (typeof toggles.autoCheck === "boolean") chk.checked = toggles.autoCheck;
+        }
+
+        function buildSnapshot() {
+          return {
+            schemaVersion: SCHEMA_VERSION,
+            appVersion: Config.APP_VERSION,
+            variant: getVariant(),
+            savedAt: new Date().toISOString(),
+            state: {
+              current: State.current,
+              initial: State.initial,
+              history: State.history,
+              toggles: readToggleState()
+            }
+          };
+        }
+
+        function saveCurrentProgress() {
+          if (!storageAvailable()) return;
+          if (!State.current || !State.initial) return;
+          const key = getPrimaryKey();
+          const payload = buildSnapshot();
+          try {
+            localStorage.setItem(key, JSON.stringify(payload));
+          } catch (e) {}
+        }
+
+        function restoreFromLocal() {
+          if (!storageAvailable()) return false;
+          const key = getPrimaryKey();
+          migrateLegacyIfNeeded(key);
+
+          let raw = null;
+          try { raw = localStorage.getItem(key); } catch (e) { return false; }
+          if (!raw) return false;
+
+          let parsed = null;
+          try { parsed = JSON.parse(raw); } catch (e) { removeKey(key); return false; }
+          if (!parsed || parsed.schemaVersion !== SCHEMA_VERSION || !parsed.state) { removeKey(key); return false; }
+
+          const s = parsed.state;
+          if (!isBoardState(s.current) || !isBoardState(s.initial) || !isHistory(s.history)) {
+            removeKey(key);
+            return false;
+          }
+
+          State.current = s.current;
+          State.initial = s.initial;
+          State.history = s.history;
+          State.isAutoFinishing = false;
+          State.isAutoMoving = false;
+          State.isAnimating = false;
+          State.animatingCount = 0;
+          State.lastAnimationPromise = Promise.resolve();
+          State.lastRevealPromise = Promise.resolve();
+          State.lastAnimationEndAt = 0;
+          State.autoChainCount = 0;
+          applyToggles(s.toggles || {});
+          setLastMove("deal", { animate: false });
+          UI.render(State.current);
+          updateButtons();
+          clearStatus();
+          requestAutoCheck();
+          return true;
+        }
+
+        return {
+          saveCurrentProgress,
+          restoreFromLocal
+        };
+      })();
+
       /* --- [Simulator] --- */
       class Simulator {
         constructor() {}
@@ -414,6 +595,7 @@
         State.autoChainCount = 0;
         setLastMove("manual");
         UI.render(State.current); updateButtons(); requestAutoCheck();
+        Persistence.saveCurrentProgress();
       }
       
       function updateButtons() { 
@@ -503,6 +685,7 @@
         btnNew.disabled = false;
         setLastMove("deal", { animate: false });
         UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
+        Persistence.saveCurrentProgress();
       }
 
       function buildTestState() {
@@ -545,6 +728,7 @@
             clearStatus();
             setLastMove("deal", { animate: false });
             UI.render(State.current); updateButtons(); requestAutoCheck();
+            Persistence.saveCurrentProgress();
         }
       }
 
@@ -767,6 +951,7 @@
             setLastMove("manual");
           }
           UI.render(State.current); 
+          Persistence.saveCurrentProgress();
           const endAt = State.lastAnimationEndAt;
           const afterReveal = () => { triggerAutoFoundation(); requestAutoCheck(); };
           if (revealCard) scheduleReveal(revealCard, "manual", afterReveal, endAt);
@@ -1088,7 +1273,9 @@
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {
-          setTimeout(Controller.startNewGame, 300);
+          if (!Persistence.restoreFromLocal()) {
+            setTimeout(Controller.startNewGame, 300);
+          }
         });
       });
     </script>
