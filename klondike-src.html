@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>Klondike (Solitaire)</title>
-    <script src="https://cardmeister.github.io/elements.cardmeister.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.min.js"></script>
+    {{CARDMEISTER_SCRIPT}}
+    {{MOTION_SCRIPT}}
     <style>
       :root {
         --card-w: 100px; --card-h: 140px;
@@ -146,7 +146,7 @@
     <script>
       /* --- [Config] --- */
       const Config = {
-        APP_VERSION: "v20260126",
+        APP_VERSION: "v20260304",
         // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
         SUITS: ["spades", "hearts", "clubs", "diamonds"],
         RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
