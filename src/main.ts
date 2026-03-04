@@ -37,7 +37,8 @@
         lastAnimationEndAt: 0,
         lastRevealPromise: Promise.resolve(),
         lastMove: null,
-        autoChainCount: 0
+        autoChainCount: 0,
+        maxAutoChainCount: 0
       };
 
       document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
@@ -49,7 +50,12 @@
         State.manualMoveCount += 1;
         updateMoveCounter();
       }
+      function updateWinStats() {
+        const el = document.getElementById("win-stats");
+        if (el) el.textContent = `Max Chain: ${State.maxAutoChainCount}`;
+      }
       updateMoveCounter();
+      updateWinStats();
 
       /* --- [Persistence] --- */
       const Persistence = (() => {
@@ -177,6 +183,7 @@
               history: State.history,
               manualMoveCount: State.manualMoveCount,
               moveCountHistory: State.moveCountHistory,
+              maxAutoChainCount: State.maxAutoChainCount,
               toggles: readToggleState()
             }
           };
@@ -218,6 +225,8 @@
           else State.manualMoveCount = 0;
           if (isMoveCountHistory(s.moveCountHistory)) State.moveCountHistory = s.moveCountHistory;
           else State.moveCountHistory = Array(State.history.length).fill(0);
+          if (Number.isInteger(s.maxAutoChainCount) && s.maxAutoChainCount >= 0) State.maxAutoChainCount = s.maxAutoChainCount;
+          else State.maxAutoChainCount = 0;
           State.isAutoFinishing = false;
           State.isAutoMoving = false;
           State.isAnimating = false;
@@ -230,6 +239,7 @@
           setLastMove("deal", { animate: false });
           UI.render(State.current);
           updateMoveCounter();
+          updateWinStats();
           updateButtons();
           clearStatus();
           requestAutoCheck();
@@ -351,6 +361,7 @@
         State.history = []; 
         State.moveCountHistory = [];
         State.manualMoveCount = 0;
+        State.maxAutoChainCount = 0;
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
         State.autoChainCount = 0;
@@ -358,6 +369,7 @@
         btnNew.disabled = false;
         setLastMove("deal", { animate: false });
         updateMoveCounter();
+        updateWinStats();
         UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
         Persistence.saveCurrentProgress();
       }
@@ -383,12 +395,14 @@
         State.history = [];
         State.moveCountHistory = [];
         State.manualMoveCount = 0;
+        State.maxAutoChainCount = 0;
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
         State.autoChainCount = 0;
         clearStatus();
         setLastMove("deal", { animate: false });
         updateMoveCounter();
+        updateWinStats();
         UI.render(State.current); updateButtons(); requestAutoCheck();
         checkVictoryCondition();
       }
@@ -401,12 +415,14 @@
             State.history = [];
             State.moveCountHistory = [];
             State.manualMoveCount = 0;
+            State.maxAutoChainCount = 0;
             State.isAutoFinishing = false;
             State.isAutoMoving = false;
             State.autoChainCount = 0;
             clearStatus();
             setLastMove("deal", { animate: false });
             updateMoveCounter();
+            updateWinStats();
             UI.render(State.current); updateButtons(); requestAutoCheck();
             Persistence.saveCurrentProgress();
         }
@@ -449,6 +465,7 @@
           if (moved) { 
               State.isAutoMoving = true;
               State.autoChainCount += 1;
+              State.maxAutoChainCount = Math.max(State.maxAutoChainCount, State.autoChainCount);
               setLastMove("auto", { foundationIdx, prevFoundationCard });
               UI.render(State.current);
               const endAt = State.lastAnimationEndAt;
@@ -534,7 +551,7 @@
         State.autoChainCount = 0;
         UI.render(State.current);
         const endAt = State.lastAnimationEndAt;
-        const afterReveal = () => { checkVictoryCondition(); requestAutoCheck(); };
+        const afterReveal = () => { triggerAutoFoundation(); requestAutoCheck(); };
         if (revealCard) scheduleReveal(revealCard, "auto", afterReveal, endAt);
         else waitForAnimationsThen(afterReveal);
       }
@@ -647,6 +664,7 @@
         const total = state.foundations.reduce((acc, f) => acc + f.length, 0);
         if (total === 52) { 
             State.isAutoMoving = false;
+            updateWinStats();
             document.getElementById("win-overlay").style.display = "flex"; 
             return; 
         }
@@ -677,6 +695,7 @@
         }
         if (moved) { 
           State.autoChainCount += 1;
+          State.maxAutoChainCount = Math.max(State.maxAutoChainCount, State.autoChainCount);
           setLastMove("auto", { foundationIdx, prevFoundationCard });
           UI.render(State.current); 
           waitForAnimationsThen(() => { setTimeout(autoDissolve, 80); });
