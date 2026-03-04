@@ -65,20 +65,20 @@
 - Use separate storage keys for offline/online variants; define one-time migration from legacy `index*.html` keys.
 - Add deterministic initial-board reproduction code using `seed + attemptIndex` (e.g. `SEED-000137`).
 - Record/lock the generation contract used for reproduction (`schemaVersion`, PRNG/shuffle behavior, solver thresholds).
-- Document the minimum build specification before implementation (inputs/outputs, 2 build targets, offline boundary rules).
-- Define file naming migration for build pipeline:
-- source: `klondike-src.html`
-- outputs: `klondike.html` (offline), `klondike-online.html` (online)
-- no-animation variant removed from active targets.
+- [DONE] Document the minimum build specification before implementation (inputs/outputs, 2 build targets, offline boundary rules).
+- [DONE] Define file naming migration for build pipeline:
+- [DONE] source: `klondike-src.html`
+- [DONE] outputs: `klondike.html` (offline), `klondike-online.html` (online)
+- [DONE] no-animation variant removed from active targets.
 - Define build input/output paths (editable sources under `src/`, generated artifacts under project root or `dist/`).
-- Define target matrix and differences (2 targets):
-- `klondike.html`: offline self-contained (no CDN at runtime).
-- `klondike-online.html`: online target that may keep CDN loading.
+- [DONE] Define target matrix and differences (2 targets):
+- [DONE] `klondike.html`: offline self-contained (no CDN at runtime).
+- [DONE] `klondike-online.html`: online target that may keep CDN loading.
 - Define external dependency boundary rules:
 - offline targets must fail build if any external runtime URL remains.
 - online target must explicitly whitelist allowed CDN URLs.
 - Define deterministic build behavior (same input => same output bytes except timestamp/version fields).
-- Define build command contract (`npm run build`, optional per-target build commands).
+- [DONE] Define build command contract (`npm run build`, optional per-target build commands).
 - Define validation gate command (`npm run check:all`) including at least smoke tests + build.
 - Define migration rule: generated HTML is not edited directly; changes are made in source files and rebuilt.
 - Introduce a mobile-first hamburger menu (`☰`) at top-right for low-frequency actions.
@@ -183,20 +183,20 @@
 - オフライン版/オンライン版で保存キーを分離し、旧 `index*.html` キーからの1回移行方針を定義する。
 - `seed + attemptIndex`（例: `SEED-000137`）で初期盤面を決定的に再現できるコード方式を追加する。
 - 再現性の前提となる生成契約（`schemaVersion`、PRNG/シャッフル挙動、ソルバ閾値）を記録・固定する。
-- 実装前に最小ビルド仕様（入出力、2ターゲット、オフライン境界ルール）を文書化する。
-- ビルド命名の移行方針を定義する。
-- ソース: `klondike-src.html`
-- 出力: `klondike.html`（オフライン）/ `klondike-online.html`（オンライン）
-- noanime 系は現行ターゲットから除外済み（削除済み）。
+- [DONE] 実装前に最小ビルド仕様（入出力、2ターゲット、オフライン境界ルール）を文書化する。
+- [DONE] ビルド命名の移行方針を定義する。
+- [DONE] ソース: `klondike-src.html`
+- [DONE] 出力: `klondike.html`（オフライン）/ `klondike-online.html`（オンライン）
+- [DONE] noanime 系は現行ターゲットから除外済み（削除済み）。
 - ビルドの入出力パスを定義する（編集対象は `src/`、生成物はプロジェクトルートまたは `dist/`）。
-- 2ターゲットの差分方針を定義する。
-- `klondike.html`: オフライン完結（実行時 CDN 禁止）。
-- `klondike-online.html`: オンライン版として CDN 読み込みを許可。
+- [DONE] 2ターゲットの差分方針を定義する。
+- [DONE] `klondike.html`: オフライン完結（実行時 CDN 禁止）。
+- [DONE] `klondike-online.html`: オンライン版として CDN 読み込みを許可。
 - 外部依存の境界ルールを定義する。
 - オフライン版は外部 URL が残っていたらビルド失敗にする。
 - オンライン版は許可 CDN を明示したホワイトリスト運用にする。
 - 決定的ビルド要件を定義する（同一入力から同一出力を生成。時刻/バージョン埋込を除く）。
-- ビルドコマンド仕様を定義する（`npm run build`、必要ならターゲット別コマンド）。
+- [DONE] ビルドコマンド仕様を定義する（`npm run build`、必要ならターゲット別コマンド）。
 - 品質ゲートを定義する（`npm run check:all` に最低限 smoke test + build を含める）。
 - 運用ルールを定義する（生成 HTML を直接編集しない。変更はソースを編集して再ビルドする）。
 - スマホ向けに右上ハンバーガーメニュー（`☰`）を導入し、低頻度操作の退避先にする。
