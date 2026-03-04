@@ -1,6 +1,6 @@
       /* --- [Config] --- */
       const Config = {
-        APP_VERSION: "v20260304",
+        APP_VERSION: "v20260305",
         // 【変更点1】 並び順を スペード(0), ハート(1), クラブ(2), ダイヤ(3) に変更
         SUITS: ["spades", "hearts", "clubs", "diamonds"],
         RANKS: ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "ten", "jack", "queen", "king"],
@@ -27,6 +27,8 @@
         current: null,
         initial: null,
         history: [],
+        moveCountHistory: [],
+        manualMoveCount: 0,
         isAutoFinishing: false,
         isAutoMoving: false,
         isAnimating: false,
@@ -39,6 +41,15 @@
       };
 
       document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
+      function updateMoveCounter() {
+        const el = document.getElementById("moves-msg");
+        if (el) el.textContent = `Moves: ${State.manualMoveCount}`;
+      }
+      function incrementMoveCount() {
+        State.manualMoveCount += 1;
+        updateMoveCounter();
+      }
+      updateMoveCounter();
 
       /* --- [Persistence] --- */
       const Persistence = (() => {
@@ -139,6 +150,9 @@
           }
           return true;
         }
+        function isMoveCountHistory(history) {
+          return Array.isArray(history) && history.every(x => Number.isInteger(x) && x >= 0);
+        }
 
         function readToggleState() {
           const chk = document.getElementById("chk-autocheck");
@@ -161,6 +175,8 @@
               current: State.current,
               initial: State.initial,
               history: State.history,
+              manualMoveCount: State.manualMoveCount,
+              moveCountHistory: State.moveCountHistory,
               toggles: readToggleState()
             }
           };
@@ -198,6 +214,10 @@
           State.current = s.current;
           State.initial = s.initial;
           State.history = s.history;
+          if (Number.isInteger(s.manualMoveCount) && s.manualMoveCount >= 0) State.manualMoveCount = s.manualMoveCount;
+          else State.manualMoveCount = 0;
+          if (isMoveCountHistory(s.moveCountHistory)) State.moveCountHistory = s.moveCountHistory;
+          else State.moveCountHistory = Array(State.history.length).fill(0);
           State.isAutoFinishing = false;
           State.isAutoMoving = false;
           State.isAnimating = false;
@@ -209,6 +229,7 @@
           applyToggles(s.toggles || {});
           setLastMove("deal", { animate: false });
           UI.render(State.current);
+          updateMoveCounter();
           updateButtons();
           clearStatus();
           requestAutoCheck();
@@ -228,7 +249,9 @@
       function pushHistory() {
         if (State.current) {
             if (State.history.length > 1000) State.history.shift(); 
+            if (State.moveCountHistory.length > 1000) State.moveCountHistory.shift();
             State.history.push(JSON.stringify(State.current));
+            State.moveCountHistory.push(State.manualMoveCount);
             updateButtons();
         }
       }
@@ -237,8 +260,11 @@
         if (State.isAutoMoving || State.isAnimating) return;
         if (State.history.length === 0) return;
         State.current = JSON.parse(State.history.pop());
+        const prevCount = State.moveCountHistory.pop();
+        State.manualMoveCount = Number.isInteger(prevCount) ? prevCount : 0;
         State.autoChainCount = 0;
         setLastMove("manual");
+        updateMoveCounter();
         UI.render(State.current); updateButtons(); requestAutoCheck();
         Persistence.saveCurrentProgress();
       }
@@ -323,12 +349,15 @@
         State.current = newState;
         State.initial = JSON.parse(JSON.stringify(newState));
         State.history = []; 
+        State.moveCountHistory = [];
+        State.manualMoveCount = 0;
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
         State.autoChainCount = 0;
         clearStatus();
         btnNew.disabled = false;
         setLastMove("deal", { animate: false });
+        updateMoveCounter();
         UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
         Persistence.saveCurrentProgress();
       }
@@ -352,11 +381,14 @@
         State.current = testState;
         State.initial = JSON.parse(JSON.stringify(testState));
         State.history = [];
+        State.moveCountHistory = [];
+        State.manualMoveCount = 0;
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
         State.autoChainCount = 0;
         clearStatus();
         setLastMove("deal", { animate: false });
+        updateMoveCounter();
         UI.render(State.current); updateButtons(); requestAutoCheck();
         checkVictoryCondition();
       }
@@ -367,11 +399,14 @@
         if(confirm("Restart from the beginning?")) {
             State.current = JSON.parse(JSON.stringify(State.initial));
             State.history = [];
+            State.moveCountHistory = [];
+            State.manualMoveCount = 0;
             State.isAutoFinishing = false;
             State.isAutoMoving = false;
             State.autoChainCount = 0;
             clearStatus();
             setLastMove("deal", { animate: false });
+            updateMoveCounter();
             UI.render(State.current); updateButtons(); requestAutoCheck();
             Persistence.saveCurrentProgress();
         }
@@ -447,6 +482,7 @@
           State.autoChainCount = 0;
           setLastMove("draw", { cardKey: getCardKey(c), prevWasteCard: prevWasteTop });
         }
+        incrementMoveCount();
         UI.render(State.current); triggerAutoFoundation();
       }
 
@@ -494,6 +530,7 @@
           state.waste = [];
           setLastMove("manual", { animate: false });
         }
+        incrementMoveCount();
         State.autoChainCount = 0;
         UI.render(State.current);
         const endAt = State.lastAnimationEndAt;
@@ -591,6 +628,7 @@
 
         if (moveSuccess) { 
           State.autoChainCount = 0;
+          incrementMoveCount();
           if (movedToFoundation) {
             setLastMove("manual", { foundationIdx, prevFoundationCard });
           } else {
@@ -919,6 +957,40 @@
         Controller.startNewGame();
       };
       document.getElementById("chk-autocheck").onchange = () => { Controller.requestAutoCheck(); };
+      (function setupMenu() {
+        const menuBtn = document.getElementById("btn-menu");
+        const menuPanel = document.getElementById("menu-panel");
+        if (!menuBtn || !menuPanel) return;
+        const closeMenu = () => {
+          menuPanel.hidden = true;
+          menuBtn.setAttribute("aria-expanded", "false");
+        };
+        const openMenu = () => {
+          menuPanel.hidden = false;
+          menuBtn.setAttribute("aria-expanded", "true");
+        };
+        menuBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (menuPanel.hidden) openMenu();
+          else closeMenu();
+        };
+        menuPanel.addEventListener("click", (e) => {
+          e.stopPropagation();
+        });
+        document.addEventListener("click", () => {
+          closeMenu();
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") closeMenu();
+        });
+        ["btn-restart", "new-game", "btn-test", "chk-autocheck"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("click", () => {
+            closeMenu();
+          });
+        });
+      })();
 
       window.addEventListener('load', () => {
         customElements.whenDefined('playing-card').then(() => {

@@ -34,6 +34,25 @@
       .github-link:hover { opacity: 1; }
       .github-link svg { width: 16px; height: 16px; display: block; }
       .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+      .menu { position: relative; display: inline-flex; align-items: center; }
+      .menu-btn { min-width: 40px; padding: 6px 10px; font-size: 16px; line-height: 1; }
+      .menu-panel {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 220px;
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 8px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+        z-index: 120;
+      }
+      .menu-panel[hidden] { display: none; }
+      .menu-panel button { width: 100%; text-align: left; }
+      .menu-toggle { width: 100%; justify-content: flex-start; }
       
       .toggle-label { display: flex; align-items: center; cursor: pointer; color: white; font-size: 12px; gap: 5px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
       .toggle-label input { cursor: pointer; }
@@ -61,6 +80,7 @@
         }
         header { padding: 12px 10px; }
         .controls { width: 100%; }
+        .menu { margin-left: auto; }
         .board { padding: 10px var(--board-pad); gap: 20px; }
       }
 
@@ -109,14 +129,20 @@
       </h1>
       <div class="controls">
         <span id="status-msg"></span>
-        <label class="toggle-label" title="Auto check + debug logs">
-            <input type="checkbox" id="chk-autocheck" checked> Solvability Check
-        </label>
-        <button id="btn-undo" disabled>Undo</button>
-        <button id="btn-restart" disabled>Restart</button>
+        <span id="moves-msg">Moves: 0</span>
         <button id="btn-hint">Hint</button>
-        <button id="new-game">New Game</button>
-        <button id="btn-test">Test</button>
+        <button id="btn-undo" disabled>Undo</button>
+        <div class="menu">
+          <button id="btn-menu" class="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">☰</button>
+          <div id="menu-panel" class="menu-panel" hidden>
+            <button id="btn-restart" disabled>Restart</button>
+            <button id="new-game">New Game</button>
+            <label class="toggle-label menu-toggle" title="Auto check + debug logs">
+                <input type="checkbox" id="chk-autocheck" checked> Solvability Check
+            </label>
+            <button id="btn-test">Test</button>
+          </div>
+        </div>
       </div>
     </header>
     <main class="board">
