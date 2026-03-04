@@ -174,6 +174,23 @@
 - 勝利後の再現（リプレイ/盤面再現）仕様
 
 ## TODO（仕様）
+- 再開メモ（2026-03-05）
+- [DONE] `klondike-src.html` のアプリ本体スクリプトを `src/main.ts` へ外出しした。
+- [DONE] ビルドで `{{APP_SCRIPT}}` を注入する方式へ移行した（`scripts/build.mjs`）。
+- [DONE] `Deal Again` は `location.reload()` ではなく `Controller.startNewGame()` を呼ぶ。
+- [DONE] 保存タイミングを調整した（手動操作直後の中間保存を外し、自動連鎖終了時に保存）。
+- [DONE] `Rules` と `Solver` を分割した（`src/core/rules.ts`, `src/core/solver.ts`）。
+- [DONE] Vitest 導入済み（`test:unit`, `test:unit:watch`, `vitest.config.ts`）。
+- [DONE] ユニットテストを追加済み（`test/rules.spec.ts`, `test/solver.spec.ts`）。
+- 次回再開手順:
+- `npm run test:unit`
+- `npm run build`
+- `klondike.html` を開き、`New Game` / 復元 / `Deal Again` を手動確認する。
+- 次の実装候補（優先順）:
+- localStorage 回帰テスト追加（復元・破損データ・offline/online キー分離）。
+- ハンバーガーメニュー導入（Undo/Hint 常時表示、低頻度操作をメニューへ移動）。
+- 盤面再現キー（`StartKey` / `StateKey`）仕様の実装準備。
+
 - `localStorage` を使ったプレイ中データの自動保存/自動復元を追加する。
 - 保存対象は `current`、`initial`、`history`（Undo 履歴）、設定トグルを含める。
 - 保存タイミングは `handleSlotClick()` / `startNewGame()` / `restartGame()` / `popHistory()`（Undo）完了時とする。
