@@ -57,6 +57,7 @@ export function loadPersistenceModule(contextSeed: Record<string, unknown>) {
   const script = new vm.Script(wrapped, { filename: "persistence-snippet.ts" });
   const contextObject = {
     updateMoveCounter: () => {},
+    updateWinStats: () => {},
     ...contextSeed
   } as Record<string, unknown>;
   const context = vm.createContext(contextObject);
@@ -90,6 +91,7 @@ export function loadMainModule(contextSeed: Record<string, unknown>) {
   return contextObject.__core_exports as {
     Controller: {
       startNewGame: () => Promise<void>;
+      hintMove: () => void;
     };
     State: {
       current: any;

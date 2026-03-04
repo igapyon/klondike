@@ -223,4 +223,43 @@ describe("new game integration", () => {
     expect(State.history).toHaveLength(1);
     expect(document.getElementById("chk-autocheck")?.checked).toBe(false);
   });
+
+  it("hint behaves like manual flow and continues auto foundation", async () => {
+    const document = createDocumentStub();
+    const localStorage = createMemoryStorage();
+    const windowStub = { addEventListener() {} };
+
+    const { Controller, State } = loadMainModule({
+      document,
+      localStorage,
+      location: { pathname: "/game/klondike.html" },
+      window: windowStub,
+      customElements: { whenDefined: async () => {} },
+      Element: ElementStub,
+      performance,
+      setTimeout,
+      clearTimeout,
+      Promise,
+      confirm: () => true,
+      console,
+      Math,
+      Date,
+      JSON
+    });
+
+    State.current = {
+      stock: [card(0, 1, false)],
+      waste: [],
+      foundations: [[], [], [], []],
+      tableau: [[], [], [], [], [], [], []]
+    };
+    State.initial = JSON.parse(JSON.stringify(State.current));
+    State.history = [];
+
+    Controller.hintMove();
+    await new Promise((resolve) => setTimeout(resolve, 950));
+
+    expect(State.current.foundations[0]).toHaveLength(1);
+    expect(State.current.waste).toHaveLength(0);
+  });
 });
