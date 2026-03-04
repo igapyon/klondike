@@ -15,6 +15,7 @@ Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web ap
 
 ## Directory
 - `klondike-src.html`: source template for build output
+- `src/main.ts`: app main script source
 - `klondike.html`: offline self-contained output (libraries bundled)
 - `klondike-online.html`: online output (CDN library loading)
 - `scripts/build.mjs`: build script
@@ -61,6 +62,7 @@ Play Klondike (Solitaire) in the browser — a single-file, easy-to-share web ap
 
 ## ディレクトリ
 - `klondike-src.html`: ビルド入力のソーステンプレート
+- `src/main.ts`: アプリ本体スクリプトのソース
 - `klondike.html`: 自己完結版の生成物（ライブラリ同梱）
 - `klondike-online.html`: ネットワーク必要版の生成物（CDN読み込み）
 - `scripts/build.mjs`: ビルドスクリプト

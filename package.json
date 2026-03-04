@@ -4,6 +4,12 @@
   "version": "0.0.0",
   "description": "Klondike static web app build scripts",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
+  },
+  "devDependencies": {
+    "jsdom": "^28.1.0",
+    "vitest": "^4.0.18"
   }
 }
