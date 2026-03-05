@@ -28,7 +28,7 @@
         body { min-height: 100dvh; }
       }
       header { padding: 15px 24px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; max-width: 900px; margin: 0 auto; }
-      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; }
+      h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: normal; text-shadow: 1px 1px 2px black; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; width: 100%; }
       .app-version { font-size: 12px; opacity: 0.8; }
       .github-link { display: inline-flex; align-items: center; color: var(--accent); opacity: 0.9; }
       .github-link:hover { opacity: 1; }
@@ -62,7 +62,8 @@
       button:active { transform: translateY(1px); }
       button:disabled { opacity: 0.5; cursor: not-allowed; }
       
-      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 10px; text-shadow: 1px 1px 0 #000; min-width: 80px; text-align: right; }
+      #status-msg { color: #ffff00; font-weight: bold; font-size: 14px; margin-right: 6px; text-shadow: 1px 1px 0 #000; min-width: 0; text-align: right; white-space: nowrap; }
+      #moves-msg { font-weight: bold; font-size: 14px; text-shadow: 1px 1px 0 #000; white-space: nowrap; }
       
       .board { padding: 10px var(--board-pad) 40px; display: grid; gap: 40px; max-width: 900px; margin: 0 auto; transition: gap 0.3s; }
       .legal { text-align: center; font-size: 12px; margin: 12px 0 16px; opacity: 0.85; border-top: 1px solid rgba(255,255,255,0.25); padding-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: nowrap; }
@@ -79,8 +80,12 @@
           --card-h: calc(var(--card-w) * 1.4);
         }
         header { padding: 12px 10px; }
-        .controls { width: 100%; }
-        .menu { margin-left: auto; }
+        .controls { width: 100%; gap: 6px; flex-wrap: nowrap; justify-content: center; }
+        .controls button { padding: 5px 8px; font-size: 11px; }
+        .menu { margin-left: 0; }
+        .menu-btn { min-width: 34px; padding: 5px 8px; font-size: 15px; }
+        #status-msg { margin-right: 2px; font-size: 12px; }
+        #moves-msg { font-size: 12px; }
         .board { padding: 10px var(--board-pad); gap: 20px; }
       }
 
@@ -102,8 +107,22 @@
         color: white; animation: fadeIn 0.5s forwards;
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      .win-msg { font-size: 40px; margin-bottom: 20px; font-family: "Times New Roman", serif; }
-      .win-stats { font-size: 18px; margin-bottom: 16px; font-weight: bold; }
+      .win-panel {
+        width: min(80vw, 520px);
+        margin: 0 auto 12px;
+        padding: 14px 18px;
+        text-align: center;
+        border-radius: 10px;
+        background: rgba(0, 50, 0, 0.88);
+        border: 1px solid rgba(255,255,255,0.28);
+        box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+      }
+      .win-msg { font-size: clamp(34px, 8vw, 72px); margin: 0; font-family: "Times New Roman", serif; }
+      .win-stat { font-size: clamp(24px, 5vw, 48px); font-weight: bold; margin: 0; }
+      .win-title { background: transparent; border: 0; box-shadow: none; }
+      .win-action { background: transparent; border: 0; box-shadow: none; }
+      .win-action { margin-bottom: 0; }
+      .win-action button { font-size: clamp(16px, 3.8vw, 30px); padding: 10px 24px; }
       
       #stuck-warning {
         position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
@@ -117,9 +136,10 @@
   </head>
   <body oncontextmenu="return false;">
     <div id="win-overlay">
-        <div class="win-msg">Congratulations</div>
-        <div id="win-stats" class="win-stats">Max Chain: 0</div>
-        <button id="btn-deal-again">Deal Again</button>
+        <div class="win-panel win-title"><div class="win-msg">Congratulations</div></div>
+        <div class="win-panel"><div id="win-hands" class="win-stat">Hands: 0</div></div>
+        <div class="win-panel"><div id="win-max-chain" class="win-stat">Max Chain: 0</div></div>
+        <div class="win-panel win-action"><button id="btn-deal-again">Deal Again</button></div>
     </div>
     
     <div id="stuck-warning">⚠️ Likely Stuck (Undo Recommended)</div>
@@ -131,7 +151,7 @@
       </h1>
       <div class="controls">
         <span id="status-msg"></span>
-        <span id="moves-msg">Moves: 0</span>
+        <span id="moves-msg">Hands: 0</span>
         <button id="btn-hint">Hint</button>
         <button id="btn-undo" disabled>Undo</button>
         <div class="menu">
