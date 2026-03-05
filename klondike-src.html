@@ -139,6 +139,24 @@
         font-size: clamp(13px, 2.5vw, 20px);
         padding: 6px 14px;
       }
+      .win-startkey-fallback {
+        margin-top: 10px;
+        display: grid;
+        gap: 8px;
+        justify-items: center;
+      }
+      .win-startkey-fallback[hidden] { display: none; }
+      .win-startkey-input {
+        width: min(90%, 460px);
+        font-size: clamp(14px, 2.8vw, 22px);
+        padding: 6px 10px;
+        text-align: center;
+        font-family: "Courier New", monospace;
+      }
+      .win-startkey-help {
+        font-size: clamp(12px, 2.4vw, 16px);
+        opacity: 0.95;
+      }
       .win-title { background: transparent; border: 0; box-shadow: none; }
       .win-action { background: transparent; border: 0; box-shadow: none; }
       .win-action { margin-bottom: 0; }
@@ -164,6 +182,11 @@
             <span class="win-startkey-label">StartKey:</span>
             <span id="win-startkey-value" class="win-startkey-value">-</span>
             <button id="btn-copy-startkey" class="win-copy-btn" type="button">Copy</button>
+          </div>
+          <div id="win-startkey-fallback" class="win-startkey-fallback" hidden>
+            <input id="win-startkey-input" class="win-startkey-input" type="text" readonly value="" />
+            <button id="btn-select-startkey" class="win-copy-btn" type="button">Select</button>
+            <div class="win-startkey-help">If copy fails on iPhone, long-press the text above and copy.</div>
           </div>
         </div>
         <div class="win-panel win-action"><button id="btn-deal-again">Deal Again</button></div>

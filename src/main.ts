@@ -77,6 +77,7 @@
         setLastMove("deal", { animate: false });
         updateMoveCounter();
         updateWinStats();
+        hideStartKeyFallback();
         UI.render(State.current);
         updateButtons();
         requestAutoCheck();
@@ -94,6 +95,61 @@
           } else {
             startKeyEl.textContent = "-";
           }
+        }
+        const startKeyInput = document.getElementById("win-startkey-input");
+        if (startKeyInput) {
+          startKeyInput.value = buildWinCopyText();
+        }
+      }
+      function buildWinCopyText() {
+        const key = State.startSeed
+          ? makeStartKey(State.startSeed, State.startAttemptIndex || 0)
+          : "-";
+        return `StartKey: ${key} | Hands: ${State.manualMoveCount} | Max Chain: ${State.maxAutoChainCount}`;
+      }
+      function hideStartKeyFallback() {
+        const fallback = document.getElementById("win-startkey-fallback");
+        if (fallback) fallback.hidden = true;
+      }
+      function selectStartKeyInput() {
+        const input = document.getElementById("win-startkey-input");
+        if (!input) return false;
+        input.focus();
+        input.select();
+        if (typeof input.setSelectionRange === "function") {
+          input.setSelectionRange(0, input.value.length);
+        }
+        return true;
+      }
+      function showStartKeyFallback(key) {
+        const fallback = document.getElementById("win-startkey-fallback");
+        const input = document.getElementById("win-startkey-input");
+        if (!fallback || !input) {
+          prompt("Copy StartKey", key);
+          return;
+        }
+        input.value = key;
+        fallback.hidden = false;
+        selectStartKeyInput();
+        showStatus("Long-press StartKey to copy", "#ffff00");
+      }
+      function tryLegacyCopy(text) {
+        try {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.setAttribute("readonly", "");
+          area.style.position = "fixed";
+          area.style.top = "-9999px";
+          area.style.left = "-9999px";
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          if (typeof area.setSelectionRange === "function") area.setSelectionRange(0, area.value.length);
+          const ok = !!(document.execCommand && document.execCommand("copy"));
+          document.body.removeChild(area);
+          return ok;
+        } catch (e) {
+          return false;
         }
       }
       updateMoveCounter();
@@ -1010,6 +1066,7 @@
       document.getElementById("btn-test").onclick = Controller.startTestGame;
       document.getElementById("btn-deal-again").onclick = () => {
         document.getElementById("win-overlay").style.display = "none";
+        hideStartKeyFallback();
         Controller.startNewGame();
       };
       document.getElementById("btn-show-startkey").onclick = () => {
@@ -1021,19 +1078,26 @@
         prompt("StartKey", key);
       };
       document.getElementById("btn-copy-startkey").onclick = async () => {
-        if (!State.startSeed) {
-          alert("StartKey is not available for this board.");
-          return;
-        }
-        const key = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+        const text = buildWinCopyText();
+        hideStartKeyFallback();
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(key);
+            await navigator.clipboard.writeText(text);
             showStatus("StartKey Copied", "#00ff00");
             return;
           }
         } catch (e) {}
-        prompt("Copy StartKey", key);
+        if (tryLegacyCopy(text)) {
+          showStatus("StartKey Copied", "#00ff00");
+          return;
+        }
+        showStartKeyFallback(text);
+      };
+      document.getElementById("btn-select-startkey").onclick = () => {
+        if (selectStartKeyInput()) showStatus("StartKey selected", "#ffff00");
+      };
+      document.getElementById("win-startkey-input").onclick = () => {
+        selectStartKeyInput();
       };
       document.getElementById("btn-load-startkey").onclick = () => {
         const raw = prompt("Enter StartKey (SEED-ATTEMPT)", "");
