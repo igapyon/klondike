@@ -29,6 +29,8 @@
         history: [],
         moveCountHistory: [],
         manualMoveCount: 0,
+        startSeed: null,
+        startAttemptIndex: 0,
         isAutoFinishing: false,
         isAutoMoving: false,
         isAnimating: false,
@@ -50,11 +52,49 @@
         State.manualMoveCount += 1;
         updateMoveCounter();
       }
+      function makeStartKey(seed, attemptIndex) {
+        return `${String(seed).toUpperCase()}-${String(attemptIndex).padStart(4, "0")}`;
+      }
+      function parseStartKey(input) {
+        if (!input) return null;
+        const m = String(input).trim().match(/^([0-9A-Fa-f]{8})-(\d{1,4})$/);
+        if (!m) return null;
+        return { seed: m[1].toUpperCase(), attemptIndex: Number.parseInt(m[2], 10) };
+      }
+      function applyStartState(state, seed, attemptIndex) {
+        State.current = state;
+        State.initial = JSON.parse(JSON.stringify(state));
+        State.history = [];
+        State.moveCountHistory = [];
+        State.manualMoveCount = 0;
+        State.maxAutoChainCount = 0;
+        State.startSeed = seed;
+        State.startAttemptIndex = attemptIndex;
+        State.isAutoFinishing = false;
+        State.isAutoMoving = false;
+        State.autoChainCount = 0;
+        clearStatus();
+        setLastMove("deal", { animate: false });
+        updateMoveCounter();
+        updateWinStats();
+        UI.render(State.current);
+        updateButtons();
+        requestAutoCheck();
+        Persistence.saveCurrentProgress();
+      }
       function updateWinStats() {
         const handsEl = document.getElementById("win-hands");
         if (handsEl) handsEl.textContent = `Hands: ${State.manualMoveCount}`;
         const chainEl = document.getElementById("win-max-chain");
         if (chainEl) chainEl.textContent = `Max Chain: ${State.maxAutoChainCount}`;
+        const startKeyEl = document.getElementById("win-startkey-value");
+        if (startKeyEl) {
+          if (State.startSeed) {
+            startKeyEl.textContent = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+          } else {
+            startKeyEl.textContent = "-";
+          }
+        }
       }
       updateMoveCounter();
       updateWinStats();
@@ -186,6 +226,8 @@
               manualMoveCount: State.manualMoveCount,
               moveCountHistory: State.moveCountHistory,
               maxAutoChainCount: State.maxAutoChainCount,
+              startSeed: State.startSeed,
+              startAttemptIndex: State.startAttemptIndex,
               toggles: readToggleState()
             }
           };
@@ -229,6 +271,10 @@
           else State.moveCountHistory = Array(State.history.length).fill(0);
           if (Number.isInteger(s.maxAutoChainCount) && s.maxAutoChainCount >= 0) State.maxAutoChainCount = s.maxAutoChainCount;
           else State.maxAutoChainCount = 0;
+          if (typeof s.startSeed === "string" && /^[0-9A-Fa-f]{8}$/.test(s.startSeed)) State.startSeed = s.startSeed.toUpperCase();
+          else State.startSeed = null;
+          if (Number.isInteger(s.startAttemptIndex) && s.startAttemptIndex >= 0) State.startAttemptIndex = s.startAttemptIndex;
+          else State.startAttemptIndex = 0;
           State.isAutoFinishing = false;
           State.isAutoMoving = false;
           State.isAnimating = false;
@@ -357,23 +403,10 @@
         const btnNew = document.getElementById("new-game");
         btnNew.disabled = true;
         await new Promise(r => setTimeout(r, 50)); 
-        const newState = bot.findSolvableDeck();
-        State.current = newState;
-        State.initial = JSON.parse(JSON.stringify(newState));
-        State.history = []; 
-        State.moveCountHistory = [];
-        State.manualMoveCount = 0;
-        State.maxAutoChainCount = 0;
-        State.isAutoFinishing = false;
-        State.isAutoMoving = false;
-        State.autoChainCount = 0;
-        clearStatus();
+        const seed = Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase().padStart(8, "0");
+        const solved = bot.findSolvableDeckWithSeed(seed);
         btnNew.disabled = false;
-        setLastMove("deal", { animate: false });
-        updateMoveCounter();
-        updateWinStats();
-        UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
-        Persistence.saveCurrentProgress();
+        applyStartState(solved.startState, seed, solved.attemptIndex);
       }
 
       function buildTestState() {
@@ -398,6 +431,8 @@
         State.moveCountHistory = [];
         State.manualMoveCount = 0;
         State.maxAutoChainCount = 0;
+        State.startSeed = null;
+        State.startAttemptIndex = 0;
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
         State.autoChainCount = 0;
@@ -977,6 +1012,43 @@
         document.getElementById("win-overlay").style.display = "none";
         Controller.startNewGame();
       };
+      document.getElementById("btn-show-startkey").onclick = () => {
+        if (!State.startSeed) {
+          alert("StartKey is not available for this board.");
+          return;
+        }
+        const key = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+        prompt("StartKey", key);
+      };
+      document.getElementById("btn-copy-startkey").onclick = async () => {
+        if (!State.startSeed) {
+          alert("StartKey is not available for this board.");
+          return;
+        }
+        const key = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(key);
+            showStatus("StartKey Copied", "#00ff00");
+            return;
+          }
+        } catch (e) {}
+        prompt("Copy StartKey", key);
+      };
+      document.getElementById("btn-load-startkey").onclick = () => {
+        const raw = prompt("Enter StartKey (SEED-ATTEMPT)", "");
+        const parsed = parseStartKey(raw);
+        if (!parsed) {
+          alert("Invalid StartKey format. Use: A1B2C3D4-0012");
+          return;
+        }
+        const state = bot.deal(bot.createDeckFromSeedAttempt(parsed.seed, parsed.attemptIndex));
+        if (!bot.checkCurrentState(state)) {
+          alert("StartKey is not solvable with current rules/settings.");
+          return;
+        }
+        applyStartState(state, parsed.seed, parsed.attemptIndex);
+      };
       document.getElementById("chk-autocheck").onchange = () => { Controller.requestAutoCheck(); };
       (function setupMenu() {
         const menuBtn = document.getElementById("btn-menu");
@@ -1004,7 +1076,7 @@
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape") closeMenu();
         });
-        ["btn-restart", "new-game", "btn-test", "chk-autocheck"].forEach((id) => {
+        ["btn-restart", "new-game", "btn-test", "chk-autocheck", "btn-show-startkey", "btn-load-startkey"].forEach((id) => {
           const el = document.getElementById(id);
           if (!el) return;
           el.addEventListener("click", () => {

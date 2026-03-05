@@ -4,14 +4,21 @@
         clone(s) { return JSON.parse(JSON.stringify(s)); }
         
         findSolvableDeck() {
+            const randomSeed = Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase().padStart(8, "0");
+            return this.findSolvableDeckWithSeed(randomSeed).startState;
+        }
+
+        findSolvableDeckWithSeed(seed) {
             let attempts = 0;
             while (attempts < 500) {
-                const deck = this.createDeck();
+                const deck = this.createDeckFromSeedAttempt(seed, attempts);
                 const startState = this.deal(deck);
-                if (this.canSolve(this.clone(startState), { limit: Config.SOLVER_LIMIT_DEAL, noProgressLimit: Config.SOLVER_STALL_DEAL })) return startState;
+                if (this.canSolve(this.clone(startState), { limit: Config.SOLVER_LIMIT_DEAL, noProgressLimit: Config.SOLVER_STALL_DEAL })) {
+                    return { startState, attemptIndex: attempts };
+                }
                 attempts++;
             }
-            return this.deal(this.createDeck());
+            return { startState: this.deal(this.createDeckFromSeedAttempt(seed, 0)), attemptIndex: 0 };
         }
 
         checkCurrentState(currentState) {
@@ -22,11 +29,36 @@
         }
 
         createDeck() {
+            return this.createDeckWithRng(() => Math.random());
+        }
+        createDeckFromSeedAttempt(seed, attemptIndex) {
+            const rng = this.rngFromSeedAttempt(seed, attemptIndex);
+            return this.createDeckWithRng(rng);
+        }
+        createDeckWithRng(rng) {
             const d = [];
             // 【変更点2】 色の判定ロジックを変更。偶数(0,2)が黒、奇数(1,3)が赤
             for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s % 2 === 0) ? 0 : 1, isOpen: false });
-            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
             return d;
+        }
+        hashSeed(seedText) {
+            let h = 2166136261;
+            for (let i = 0; i < seedText.length; i++) {
+                h ^= seedText.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return (h >>> 0);
+        }
+        rngFromSeedAttempt(seed, attemptIndex) {
+            let a = this.hashSeed(`${String(seed).toUpperCase()}#${attemptIndex}`) || 0x9e3779b9;
+            return () => {
+                a += 0x6D2B79F5;
+                let t = a;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
         }
         deal(d) {
              let t = Array.from({ length: 7 }, () => []);

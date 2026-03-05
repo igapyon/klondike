@@ -224,4 +224,59 @@ describe("persistence", () => {
     expect(localStorage.getItem("klondike:save:offline:v1")).not.toBeNull();
     expect(state.current).not.toBeNull();
   });
+
+  it("restores manualMoveCount and maxAutoChainCount from saved payload", () => {
+    const localStorage = createMemoryStorage();
+    const payload = {
+      schemaVersion: 1,
+      appVersion: "v20260305",
+      variant: "offline",
+      savedAt: new Date().toISOString(),
+      state: {
+        current: boardState(),
+        initial: boardState(),
+        history: [JSON.stringify(boardState())],
+        manualMoveCount: 42,
+        moveCountHistory: [1, 2, 41],
+        maxAutoChainCount: 17,
+        toggles: { autoCheck: true }
+      }
+    };
+    localStorage.setItem("klondike:save:offline:v1", JSON.stringify(payload));
+
+    const state = {
+      current: null,
+      initial: null,
+      history: [],
+      manualMoveCount: 0,
+      moveCountHistory: [],
+      maxAutoChainCount: 0,
+      isAutoFinishing: false,
+      isAutoMoving: false,
+      isAnimating: false,
+      animatingCount: 0,
+      lastAnimationPromise: Promise.resolve(),
+      lastRevealPromise: Promise.resolve(),
+      lastAnimationEndAt: 0,
+      autoChainCount: 0
+    };
+
+    const { Persistence } = loadPersistenceModule({
+      Config: { APP_VERSION: "v20260305" },
+      State: state,
+      UI: { render: () => {} },
+      requestAutoCheck: () => {},
+      clearStatus: () => {},
+      updateButtons: () => {},
+      setLastMove: () => {},
+      document: createDocument(),
+      localStorage,
+      location: { pathname: "/game/klondike.html" }
+    });
+
+    expect(Persistence.restoreFromLocal()).toBe(true);
+    expect(state.manualMoveCount).toBe(42);
+    expect(state.moveCountHistory).toEqual([1, 2, 41]);
+    expect(state.maxAutoChainCount).toBe(17);
+  });
 });

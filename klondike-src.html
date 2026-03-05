@@ -119,6 +119,26 @@
       }
       .win-msg { font-size: clamp(34px, 8vw, 72px); margin: 0; font-family: "Times New Roman", serif; }
       .win-stat { font-size: clamp(24px, 5vw, 48px); font-weight: bold; margin: 0; }
+      .win-startkey {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .win-startkey-label {
+        font-size: clamp(18px, 3.3vw, 30px);
+        font-weight: bold;
+      }
+      .win-startkey-value {
+        font-size: clamp(18px, 3.3vw, 30px);
+        font-weight: bold;
+        font-family: "Courier New", monospace;
+      }
+      .win-copy-btn {
+        font-size: clamp(13px, 2.5vw, 20px);
+        padding: 6px 14px;
+      }
       .win-title { background: transparent; border: 0; box-shadow: none; }
       .win-action { background: transparent; border: 0; box-shadow: none; }
       .win-action { margin-bottom: 0; }
@@ -139,6 +159,13 @@
         <div class="win-panel win-title"><div class="win-msg">Congratulations</div></div>
         <div class="win-panel"><div id="win-hands" class="win-stat">Hands: 0</div></div>
         <div class="win-panel"><div id="win-max-chain" class="win-stat">Max Chain: 0</div></div>
+        <div class="win-panel">
+          <div class="win-startkey">
+            <span class="win-startkey-label">StartKey:</span>
+            <span id="win-startkey-value" class="win-startkey-value">-</span>
+            <button id="btn-copy-startkey" class="win-copy-btn" type="button">Copy</button>
+          </div>
+        </div>
         <div class="win-panel win-action"><button id="btn-deal-again">Deal Again</button></div>
     </div>
     
@@ -159,6 +186,8 @@
           <div id="menu-panel" class="menu-panel" hidden>
             <button id="btn-restart" disabled>Restart</button>
             <button id="new-game">New Game</button>
+            <button id="btn-show-startkey">Show StartKey</button>
+            <button id="btn-load-startkey">Load StartKey</button>
             <label class="toggle-label menu-toggle" title="Auto check + debug logs">
                 <input type="checkbox" id="chk-autocheck" checked> Solvability Check
             </label>

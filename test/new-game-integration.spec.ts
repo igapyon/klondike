@@ -169,6 +169,9 @@ describe("new game integration", () => {
     expect(State.current).not.toBeNull();
     expect(State.initial).not.toBeNull();
     expect(State.history).toHaveLength(0);
+    expect(State.startSeed).toMatch(/^[0-9A-F]{8}$/);
+    expect(State.startAttemptIndex).toBeGreaterThanOrEqual(0);
+    expect(document.getElementById("win-startkey-value")?.textContent).toMatch(/^[0-9A-F]{8}-\d{4}$/);
     expect(localStorage.getItem("klondike:save:offline:v1")).not.toBeNull();
   });
 
