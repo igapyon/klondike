@@ -131,6 +131,26 @@
       }
       .win-msg { font-size: clamp(34px, 8vw, 72px); margin: 0; font-family: "Times New Roman", serif; }
       .win-stat { font-size: clamp(24px, 5vw, 48px); font-weight: bold; margin: 0; }
+      .win-startkey {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .win-startkey-label {
+        font-size: clamp(18px, 3.3vw, 30px);
+        font-weight: bold;
+      }
+      .win-startkey-value {
+        font-size: clamp(18px, 3.3vw, 30px);
+        font-weight: bold;
+        font-family: "Courier New", monospace;
+      }
+      .win-copy-btn {
+        font-size: clamp(13px, 2.5vw, 20px);
+        padding: 6px 14px;
+      }
       .win-title { background: transparent; border: 0; box-shadow: none; }
       .win-action { background: transparent; border: 0; box-shadow: none; }
       .win-action { margin-bottom: 0; }
@@ -151,6 +171,13 @@
         <div class="win-panel win-title"><div class="win-msg">Congratulations</div></div>
         <div class="win-panel"><div id="win-hands" class="win-stat">Hands: 0</div></div>
         <div class="win-panel"><div id="win-max-chain" class="win-stat">Max Chain: 0</div></div>
+        <div class="win-panel">
+          <div class="win-startkey">
+            <span class="win-startkey-label">StartKey:</span>
+            <span id="win-startkey-value" class="win-startkey-value">-</span>
+            <button id="btn-copy-startkey" class="win-copy-btn" type="button">Copy</button>
+          </div>
+        </div>
         <div class="win-panel win-action"><button id="btn-deal-again">Deal Again</button></div>
     </div>
     
@@ -171,6 +198,8 @@
           <div id="menu-panel" class="menu-panel" hidden>
             <button id="btn-restart" disabled>Restart</button>
             <button id="new-game">New Game</button>
+            <button id="btn-show-startkey">Show StartKey</button>
+            <button id="btn-load-startkey">Load StartKey</button>
             <label class="toggle-label menu-toggle" title="Auto check + debug logs">
                 <input type="checkbox" id="chk-autocheck" checked> Solvability Check
             </label>
@@ -235,6 +264,8 @@
         history: [],
         moveCountHistory: [],
         manualMoveCount: 0,
+        startSeed: null,
+        startAttemptIndex: 0,
         isAutoFinishing: false,
         isAutoMoving: false,
         isAnimating: false,
@@ -256,11 +287,49 @@
         State.manualMoveCount += 1;
         updateMoveCounter();
       }
+      function makeStartKey(seed, attemptIndex) {
+        return `${String(seed).toUpperCase()}-${String(attemptIndex).padStart(4, "0")}`;
+      }
+      function parseStartKey(input) {
+        if (!input) return null;
+        const m = String(input).trim().match(/^([0-9A-Fa-f]{8})-(\d{1,4})$/);
+        if (!m) return null;
+        return { seed: m[1].toUpperCase(), attemptIndex: Number.parseInt(m[2], 10) };
+      }
+      function applyStartState(state, seed, attemptIndex) {
+        State.current = state;
+        State.initial = JSON.parse(JSON.stringify(state));
+        State.history = [];
+        State.moveCountHistory = [];
+        State.manualMoveCount = 0;
+        State.maxAutoChainCount = 0;
+        State.startSeed = seed;
+        State.startAttemptIndex = attemptIndex;
+        State.isAutoFinishing = false;
+        State.isAutoMoving = false;
+        State.autoChainCount = 0;
+        clearStatus();
+        setLastMove("deal", { animate: false });
+        updateMoveCounter();
+        updateWinStats();
+        UI.render(State.current);
+        updateButtons();
+        requestAutoCheck();
+        Persistence.saveCurrentProgress();
+      }
       function updateWinStats() {
         const handsEl = document.getElementById("win-hands");
         if (handsEl) handsEl.textContent = `Hands: ${State.manualMoveCount}`;
         const chainEl = document.getElementById("win-max-chain");
         if (chainEl) chainEl.textContent = `Max Chain: ${State.maxAutoChainCount}`;
+        const startKeyEl = document.getElementById("win-startkey-value");
+        if (startKeyEl) {
+          if (State.startSeed) {
+            startKeyEl.textContent = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+          } else {
+            startKeyEl.textContent = "-";
+          }
+        }
       }
       updateMoveCounter();
       updateWinStats();
@@ -392,6 +461,8 @@
               manualMoveCount: State.manualMoveCount,
               moveCountHistory: State.moveCountHistory,
               maxAutoChainCount: State.maxAutoChainCount,
+              startSeed: State.startSeed,
+              startAttemptIndex: State.startAttemptIndex,
               toggles: readToggleState()
             }
           };
@@ -435,6 +506,10 @@
           else State.moveCountHistory = Array(State.history.length).fill(0);
           if (Number.isInteger(s.maxAutoChainCount) && s.maxAutoChainCount >= 0) State.maxAutoChainCount = s.maxAutoChainCount;
           else State.maxAutoChainCount = 0;
+          if (typeof s.startSeed === "string" && /^[0-9A-Fa-f]{8}$/.test(s.startSeed)) State.startSeed = s.startSeed.toUpperCase();
+          else State.startSeed = null;
+          if (Number.isInteger(s.startAttemptIndex) && s.startAttemptIndex >= 0) State.startAttemptIndex = s.startAttemptIndex;
+          else State.startAttemptIndex = 0;
           State.isAutoFinishing = false;
           State.isAutoMoving = false;
           State.isAnimating = false;
@@ -563,23 +638,10 @@
         const btnNew = document.getElementById("new-game");
         btnNew.disabled = true;
         await new Promise(r => setTimeout(r, 50)); 
-        const newState = bot.findSolvableDeck();
-        State.current = newState;
-        State.initial = JSON.parse(JSON.stringify(newState));
-        State.history = []; 
-        State.moveCountHistory = [];
-        State.manualMoveCount = 0;
-        State.maxAutoChainCount = 0;
-        State.isAutoFinishing = false;
-        State.isAutoMoving = false;
-        State.autoChainCount = 0;
-        clearStatus();
+        const seed = Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase().padStart(8, "0");
+        const solved = bot.findSolvableDeckWithSeed(seed);
         btnNew.disabled = false;
-        setLastMove("deal", { animate: false });
-        updateMoveCounter();
-        updateWinStats();
-        UI.render(State.current); updateButtons(); requestAutoCheck(); // Init Check
-        Persistence.saveCurrentProgress();
+        applyStartState(solved.startState, seed, solved.attemptIndex);
       }
 
       function buildTestState() {
@@ -604,6 +666,8 @@
         State.moveCountHistory = [];
         State.manualMoveCount = 0;
         State.maxAutoChainCount = 0;
+        State.startSeed = null;
+        State.startAttemptIndex = 0;
         State.isAutoFinishing = false;
         State.isAutoMoving = false;
         State.autoChainCount = 0;
@@ -1183,6 +1247,43 @@
         document.getElementById("win-overlay").style.display = "none";
         Controller.startNewGame();
       };
+      document.getElementById("btn-show-startkey").onclick = () => {
+        if (!State.startSeed) {
+          alert("StartKey is not available for this board.");
+          return;
+        }
+        const key = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+        prompt("StartKey", key);
+      };
+      document.getElementById("btn-copy-startkey").onclick = async () => {
+        if (!State.startSeed) {
+          alert("StartKey is not available for this board.");
+          return;
+        }
+        const key = makeStartKey(State.startSeed, State.startAttemptIndex || 0);
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(key);
+            showStatus("StartKey Copied", "#00ff00");
+            return;
+          }
+        } catch (e) {}
+        prompt("Copy StartKey", key);
+      };
+      document.getElementById("btn-load-startkey").onclick = () => {
+        const raw = prompt("Enter StartKey (SEED-ATTEMPT)", "");
+        const parsed = parseStartKey(raw);
+        if (!parsed) {
+          alert("Invalid StartKey format. Use: A1B2C3D4-0012");
+          return;
+        }
+        const state = bot.deal(bot.createDeckFromSeedAttempt(parsed.seed, parsed.attemptIndex));
+        if (!bot.checkCurrentState(state)) {
+          alert("StartKey is not solvable with current rules/settings.");
+          return;
+        }
+        applyStartState(state, parsed.seed, parsed.attemptIndex);
+      };
       document.getElementById("chk-autocheck").onchange = () => { Controller.requestAutoCheck(); };
       (function setupMenu() {
         const menuBtn = document.getElementById("btn-menu");
@@ -1210,7 +1311,7 @@
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape") closeMenu();
         });
-        ["btn-restart", "new-game", "btn-test", "chk-autocheck"].forEach((id) => {
+        ["btn-restart", "new-game", "btn-test", "chk-autocheck", "btn-show-startkey", "btn-load-startkey"].forEach((id) => {
           const el = document.getElementById(id);
           if (!el) return;
           el.addEventListener("click", () => {
@@ -1234,14 +1335,21 @@
         clone(s) { return JSON.parse(JSON.stringify(s)); }
         
         findSolvableDeck() {
+            const randomSeed = Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase().padStart(8, "0");
+            return this.findSolvableDeckWithSeed(randomSeed).startState;
+        }
+
+        findSolvableDeckWithSeed(seed) {
             let attempts = 0;
             while (attempts < 500) {
-                const deck = this.createDeck();
+                const deck = this.createDeckFromSeedAttempt(seed, attempts);
                 const startState = this.deal(deck);
-                if (this.canSolve(this.clone(startState), { limit: Config.SOLVER_LIMIT_DEAL, noProgressLimit: Config.SOLVER_STALL_DEAL })) return startState;
+                if (this.canSolve(this.clone(startState), { limit: Config.SOLVER_LIMIT_DEAL, noProgressLimit: Config.SOLVER_STALL_DEAL })) {
+                    return { startState, attemptIndex: attempts };
+                }
                 attempts++;
             }
-            return this.deal(this.createDeck());
+            return { startState: this.deal(this.createDeckFromSeedAttempt(seed, 0)), attemptIndex: 0 };
         }
 
         checkCurrentState(currentState) {
@@ -1252,11 +1360,36 @@
         }
 
         createDeck() {
+            return this.createDeckWithRng(() => Math.random());
+        }
+        createDeckFromSeedAttempt(seed, attemptIndex) {
+            const rng = this.rngFromSeedAttempt(seed, attemptIndex);
+            return this.createDeckWithRng(rng);
+        }
+        createDeckWithRng(rng) {
             const d = [];
             // 【変更点2】 色の判定ロジックを変更。偶数(0,2)が黒、奇数(1,3)が赤
             for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ suit: s, rank: r + 1, color: (s % 2 === 0) ? 0 : 1, isOpen: false });
-            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+            for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
             return d;
+        }
+        hashSeed(seedText) {
+            let h = 2166136261;
+            for (let i = 0; i < seedText.length; i++) {
+                h ^= seedText.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return (h >>> 0);
+        }
+        rngFromSeedAttempt(seed, attemptIndex) {
+            let a = this.hashSeed(`${String(seed).toUpperCase()}#${attemptIndex}`) || 0x9e3779b9;
+            return () => {
+                a += 0x6D2B79F5;
+                let t = a;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
         }
         deal(d) {
              let t = Array.from({ length: 7 }, () => []);
@@ -1400,6 +1533,7 @@
       const bot = new Simulator();
 
       
+
 
 /* --- [Rules] --- */
       function isSafeToAutoMove(card) {

@@ -97,6 +97,8 @@ export function loadMainModule(contextSeed: Record<string, unknown>) {
       current: any;
       initial: any;
       history: string[];
+      startSeed?: string | null;
+      startAttemptIndex?: number;
     };
     Persistence: {
       saveCurrentProgress: () => void;
