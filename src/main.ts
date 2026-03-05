@@ -44,15 +44,17 @@
       document.getElementById("app-version").textContent = `${Config.APP_VERSION}`;
       function updateMoveCounter() {
         const el = document.getElementById("moves-msg");
-        if (el) el.textContent = `Moves: ${State.manualMoveCount}`;
+        if (el) el.textContent = `Hands: ${State.manualMoveCount}`;
       }
       function incrementMoveCount() {
         State.manualMoveCount += 1;
         updateMoveCounter();
       }
       function updateWinStats() {
-        const el = document.getElementById("win-stats");
-        if (el) el.textContent = `Max Chain: ${State.maxAutoChainCount}`;
+        const handsEl = document.getElementById("win-hands");
+        if (handsEl) handsEl.textContent = `Hands: ${State.manualMoveCount}`;
+        const chainEl = document.getElementById("win-max-chain");
+        if (chainEl) chainEl.textContent = `Max Chain: ${State.maxAutoChainCount}`;
       }
       updateMoveCounter();
       updateWinStats();
